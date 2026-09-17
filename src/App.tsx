@@ -6,10 +6,12 @@ import { Servico } from "./models/Servico";
 import PedidoForm from "./components/PedidoForm";
 import { Pedido } from "./models/Pedido";
 import "./App.css";
+import type { Insumo } from "./models/Insumo";
 
 function App() {
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [servicos, setServicos] = useState<Servico[]>([]);
+    const [insumos, setInsumos] = useState<Insumo[]>([]);
     const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
     function cadastrarCliente(cliente: Cliente) {
