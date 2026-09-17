@@ -36,7 +36,7 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
     return (
         <form className="cliente-form" onSubmit={cadastrarCliente}>
             <div className="form-group">
-                <label htmlFor="nome">Nome</label>
+                <label htmlFor="nome">Nome completo: </label>
                 <input
                     id="nome"
                     type="text"
@@ -47,7 +47,7 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
             </div>
 
             <div className="form-group">
-                <label htmlFor="cpfCnpj">CPF/CNPJ</label>
+                <label htmlFor="cpfCnpj">CPF/CNPJ:</label>
                 <input
                     id="cpfCnpj"
                     type="text"
@@ -58,7 +58,7 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
             </div>
 
             <div className="form-group">
-                <label htmlFor="telefone">Telefone</label>
+                <label htmlFor="telefone">Telefone:</label>
                 <input
                     id="telefone"
                     type="tel"
