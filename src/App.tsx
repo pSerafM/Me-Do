@@ -4,15 +4,18 @@ import ServicoForm from "./components/ServicoForm";
 import { Cliente } from "./models/Cliente";
 import { Servico } from "./models/Servico";
 import PedidoForm from "./components/PedidoForm";
+import InsumoForm from "./components/InsumoForm";
 import { Pedido } from "./models/Pedido";
 import "./App.css";
 import type { Insumo } from "./models/Insumo";
+import { Estoque } from "./models/Estoque";
 
 function App() {
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [servicos, setServicos] = useState<Servico[]>([]);
     const [insumos, setInsumos] = useState<Insumo[]>([]);
     const [pedidos, setPedidos] = useState<Pedido[]>([]);
+    const estoque = Estoque.getInstancia();
 
     function cadastrarCliente(cliente: Cliente) {
         setClientes((clientesAtuais) => [
@@ -27,6 +30,12 @@ function App() {
             servico
         ]);
     }
+
+    function cadastrarInsumo(insumo: Insumo) {
+        estoque.adicionarInsumo(insumo);
+        setInsumos(estoque.listarInsumos());
+    }
+
     function criarPedido(pedido: Pedido) {
         setPedidos((pedidosAtuais) => [
             ...pedidosAtuais,
@@ -48,6 +57,40 @@ function App() {
                     <ClienteForm
                         onClienteCadastrado={cadastrarCliente}
                     />
+                </section>
+
+                <section className="card">
+                    <h2>Cadastrar Insumo</h2>
+
+                    <InsumoForm
+                        onInsumoCadastrado={cadastrarInsumo}
+                    />
+                </section>
+
+                <section className="card">
+                    <h2>Estoque</h2>
+
+                    {insumos.length === 0 ? (
+                        <p className="empty-message">
+                            Nenhum insumo cadastrado.
+                        </p>
+                    ) : (
+                        <div className="clientes-lista">
+                            {insumos.map((insumo) => (
+                                <div
+                                    className="cliente-item"
+                                    key={insumo.id}
+                                >
+                                    <h3>{insumo.nome}</h3>
+
+                                    <p>
+                                        <strong>Quantidade:</strong>{" "}
+                                        {insumo.quantidade} {insumo.unidade}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 <section className="card">

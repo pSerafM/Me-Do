@@ -137,6 +137,8 @@ button:hover {
 .form-group select {
     padding: 11px;
     font-size: 16px;
-    border: 1px solid #bbb;
+    color: #000000;
+    border: 1px solid #dddada;
+    background-color: #E5E8EB;
     border-radius: 6px;
 }
