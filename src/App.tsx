@@ -9,6 +9,9 @@ import { Pedido } from "./models/Pedido";
 import "./App.css";
 import type { Insumo } from "./models/Insumo";
 import { Estoque } from "./models/Estoque";
+import { ProcessarPedidoComum } from "./services/ProcessarPedidoComum";
+
+const processadorPedido = new ProcessarPedidoComum();
 
 function App() {
     const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -37,11 +40,13 @@ function App() {
     }
 
     function criarPedido(pedido: Pedido) {
+        const pedidoProcessado = processadorPedido.processar(pedido);
+
         setPedidos((pedidosAtuais) => [
             ...pedidosAtuais,
-            pedido
-    ]);
-}
+            pedidoProcessado
+        ]);
+    }
 
     return (
         <div className="app">
