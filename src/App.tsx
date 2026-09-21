@@ -64,6 +64,37 @@ function App() {
                     />
                 </section>
 
+                                <section className="card">
+                    <h2>Clientes cadastrados</h2>
+
+                    {clientes.length === 0 ? (
+                        <p className="empty-message">
+                            Nenhum cliente cadastrado.
+                        </p>
+                    ) : (
+                        <div className="clientes-lista">
+                            {clientes.map((cliente) => (
+                                <div
+                                    className="cliente-item"
+                                    key={cliente.id}
+                                >
+                                    <h3>{cliente.nome}</h3>
+
+                                    <p>
+                                        <strong>CPF/CNPJ:</strong>{" "}
+                                        {cliente.cpfCnpj}
+                                    </p>
+
+                                    <p>
+                                        <strong>Telefone:</strong>{" "}
+                                        {cliente.telefone}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
                 <section className="card">
                     <h2>Cadastrar Insumo</h2>
 
@@ -91,37 +122,6 @@ function App() {
                                     <p>
                                         <strong>Quantidade:</strong>{" "}
                                         {insumo.quantidade} {insumo.unidade}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
-
-                <section className="card">
-                    <h2>Clientes cadastrados</h2>
-
-                    {clientes.length === 0 ? (
-                        <p className="empty-message">
-                            Nenhum cliente cadastrado.
-                        </p>
-                    ) : (
-                        <div className="clientes-lista">
-                            {clientes.map((cliente) => (
-                                <div
-                                    className="cliente-item"
-                                    key={cliente.id}
-                                >
-                                    <h3>{cliente.nome}</h3>
-
-                                    <p>
-                                        <strong>CPF/CNPJ:</strong>{" "}
-                                        {cliente.cpfCnpj}
-                                    </p>
-
-                                    <p>
-                                        <strong>Telefone:</strong>{" "}
-                                        {cliente.telefone}
                                     </p>
                                 </div>
                             ))}
