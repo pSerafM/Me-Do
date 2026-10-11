@@ -18,6 +18,10 @@ export class Estoque {
         this.insumos.push(insumo);
     }
 
+    buscarPorId(id: number): Insumo | undefined {
+        return this.insumos.find((insumo) => insumo.id === id);
+    }
+
     listarInsumos(): Insumo[] {
         return [...this.insumos];
     }

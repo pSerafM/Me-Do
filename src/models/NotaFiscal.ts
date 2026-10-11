@@ -1,3 +1,9 @@
+export type StatusNota =
+    | "autorizada"
+    | "em_processamento"
+    | "com_erro"
+    | "cancelada";
+
 export class NotaFiscal {
     idNotaFiscal: number;
     idPedido: number;
@@ -5,6 +11,8 @@ export class NotaFiscal {
     serie: string;
     dataEmissao: Date;
     chaveAcesso: string;
+    status: StatusNota = "em_processamento";
+    mensagemErro: string = "";
 
     constructor(
         idNotaFiscal: number,

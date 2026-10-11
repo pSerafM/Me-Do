@@ -17,7 +17,7 @@ export abstract class ProcessarPedido {
     }
 
     protected calcularValor(pedido: Pedido): void {
-        pedido.valorTotal = pedido.servico.calcularValor();
+        pedido.valorTotal = pedido.calcularTotal();
     }
 
     protected abstract aplicarRegras(pedido: Pedido): void;

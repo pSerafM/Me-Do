@@ -1,83 +1,101 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Servico } from "../models/Servico";
+import type { Servico } from "../models/Servico";
+import type { DadosServico } from "../context/AppContext";
 
 interface ServicoFormProps {
-    onServicoCadastrado: (servico: Servico) => void;
+    inicial?: Servico;
+    rotuloBotao: string;
+    limparAoSalvar?: boolean;
+    // devolve a mensagem de erro, ou null se salvou
+    onSalvar: (dados: DadosServico) => string | null;
 }
 
-function ServicoForm({ onServicoCadastrado }: ServicoFormProps) {
-    const [nome, setNome] = useState("");
-    const [valor, setValor] = useState("");
-    const [horasEstimadas, setHorasEstimadas] = useState("");
+function ServicoForm({ inicial, rotuloBotao, limparAoSalvar, onSalvar }: ServicoFormProps) {
+    const [nome, setNome] = useState(inicial?.nome ?? "");
+    const [valor, setValor] = useState(inicial ? String(inicial.valor) : "");
+    const [horas, setHoras] = useState(inicial ? String(inicial.horasEstimadas) : "");
+    const [descricao, setDescricao] = useState(inicial?.descricao ?? "");
 
-    function cadastrarServico(event: FormEvent<HTMLFormElement>) {
+    function salvar(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (!nome || !valor || !horasEstimadas) {
-            alert("Preencha todos os campos.");
+        if (!nome.trim() || !valor || !horas) {
+            alert("Preencha nome, valor e tempo estimado.");
             return;
         }
 
-        const novoServico = new Servico(
-            Date.now(),
-            nome,
-            Number(valor),
-            Number(horasEstimadas)
-        );
+        if (Number(valor) < 0 || Number(horas) <= 0) {
+            alert("Informe valores válidos.");
+            return;
+        }
 
-        onServicoCadastrado(novoServico);
+        const erro = onSalvar({
+            nome: nome.trim(),
+            valor: Number(valor),
+            horasEstimadas: Number(horas),
+            descricao: descricao.trim()
+        });
 
-        setNome("");
-        setValor("");
-        setHorasEstimadas("");
+        if (erro) {
+            alert(erro);
+            return;
+        }
+
+        if (limparAoSalvar) {
+            setNome("");
+            setValor("");
+            setHoras("");
+            setDescricao("");
+        }
     }
 
     return (
-        <form className="cliente-form" onSubmit={cadastrarServico}>
-            <div className="form-group">
-                <label htmlFor="nomeServico">Nome do serviço</label>
+        <form className="form-servico" onSubmit={salvar}>
+            <div className="campo campo-nome">
+                <label htmlFor="nomeServico">Nome de Serviço</label>
                 <input
                     id="nomeServico"
-                    type="text"
                     value={nome}
-                    onChange={(event) => setNome(event.target.value)}
-                    placeholder="Ex: Troca de óleo"
+                    onChange={(e) => setNome(e.target.value)}
                 />
             </div>
 
-            <div className="form-group">
-                <label htmlFor="valorServico">Valor (R$)</label>
+            <div className="campo">
+                <label htmlFor="valorServico">Valor Padrão</label>
                 <input
                     id="valorServico"
                     type="number"
                     min="0"
                     step="0.01"
                     value={valor}
-                    onChange={(event) => setValor(event.target.value)}
-                    placeholder="Ex: 150.00"
+                    onChange={(e) => setValor(e.target.value)}
                 />
             </div>
 
-            <div className="form-group">
-                <label htmlFor="horasServico">
-                    Horas estimadas
-                </label>
+            <div className="campo">
+                <label htmlFor="horasServico">Tempo Estimado (h)</label>
                 <input
                     id="horasServico"
                     type="number"
                     min="0"
                     step="0.5"
-                    value={horasEstimadas}
-                    onChange={(event) =>
-                        setHorasEstimadas(event.target.value)
-                    }
-                    placeholder="Ex: 2"
+                    value={horas}
+                    onChange={(e) => setHoras(e.target.value)}
                 />
             </div>
 
-            <button type="submit">
-                Cadastrar Serviço
+            <div className="campo campo-largo">
+                <label htmlFor="descServico">Descrição</label>
+                <input
+                    id="descServico"
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value)}
+                />
+            </div>
+
+            <button type="submit" className="btn btn-primario campo-largo">
+                {rotuloBotao}
             </button>
         </form>
     );

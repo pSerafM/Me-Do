@@ -1,22 +1,8 @@
-export class GeradorNotaFiscal {
-    private static instancia: GeradorNotaFiscal;
-    private proximoNumero: number = 1;
+import { Pedido } from "../models/Pedido";
+import { ProcessarPedido } from "./ProcessarPedido";
 
-    private constructor() {}
-
-    static getInstancia(): GeradorNotaFiscal {
-        if (!GeradorNotaFiscal.instancia) {
-            GeradorNotaFiscal.instancia = new GeradorNotaFiscal();
-        }
-
-        return GeradorNotaFiscal.instancia;
+export class ProcessarPedidoUrgente extends ProcessarPedido {
+    protected aplicarRegras(pedido: Pedido): void {
+        pedido.alterarStatus("urgente");
     }
-
-    gerarNumero(): number {
-        return this.proximoNumero++;
-    }
-
-    consultarProximoNumero(): number {
-        return this.proximoNumero;
-    }
-}   
+}
