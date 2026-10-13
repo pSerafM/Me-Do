@@ -12,7 +12,7 @@ interface FuncionarioFormProps {
     funcionario?: Funcionario;
     modo: "cadastro" | "visualizacao";
     // devolve a mensagem de erro, ou null se salvou
-    onSalvar: (dados: Funcionario) => string | null;
+    onSalvar: (dados: Funcionario, senha?: string) => string | null | Promise<string | null>;
     onExcluir?: () => void;
 }
 
@@ -32,8 +32,9 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
     const [rua, setRua] = useState(funcionario?.rua ?? "");
     const [numero, setNumero] = useState(funcionario ? String(funcionario.numero) : "");
     const [complemento, setComplemento] = useState(funcionario?.complemento ?? "");
+    const [senha, setSenha] = useState("");
 
-    function salvar(event: FormEvent<HTMLFormElement>) {
+    async function salvar(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         if (!nome.trim() || !cpf.trim() || !email.trim() || !nascimento) {
@@ -58,7 +59,12 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
             Number(numero) || 0
         );
 
-        const erro = onSalvar(dados);
+        if (modo === "cadastro" && senha.length < 12) {
+            alert("A senha deve ter pelo menos 12 caracteres.");
+            return;
+        }
+
+        const erro = await onSalvar(dados, senha || undefined);
 
         if (erro) {
             alert(erro);
@@ -126,6 +132,18 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
                         onChange={(e) => setEmail(e.target.value)}
                     />
                 </div>
+
+                {modo === "cadastro" && (
+                    <div className="campo c-inteiro">
+                        <label>Senha inicial (mínimo de 12 caracteres):</label>
+                        <input
+                            type="password"
+                            autoComplete="new-password"
+                            value={senha}
+                            onChange={(event) => setSenha(event.target.value)}
+                        />
+                    </div>
+                )}
 
                 <div className="campo c-quarto">
                     <label>CEP:</label>

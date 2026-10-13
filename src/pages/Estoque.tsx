@@ -89,8 +89,8 @@ function Estoque() {
             {novoInsumo && (
                 <Modal titulo="Cadastro de Insumo" icone="+" onFechar={() => setNovoInsumo(false)}>
                     <InsumoForm
-                        onInsumoCadastrado={(insumo) => {
-                            const erro = cadastrarInsumo(insumo);
+                        onInsumoCadastrado={async (insumo) => {
+                            const erro = await cadastrarInsumo(insumo);
                             if (!erro) setNovoInsumo(false);
                             return erro;
                         }}

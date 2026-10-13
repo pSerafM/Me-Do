@@ -9,7 +9,7 @@ function Despesas() {
     const [valor, setValor] = useState("");
     const [vencimento, setVencimento] = useState("");
 
-    function registrar(evento: FormEvent<HTMLFormElement>) {
+    async function registrar(evento: FormEvent<HTMLFormElement>) {
         evento.preventDefault();
 
         if (!categoria.trim() || !valor || !vencimento) {
@@ -22,7 +22,15 @@ function Despesas() {
             return;
         }
 
-        registrarDespesa(categoria.trim(), Number(valor), deInputData(vencimento));
+        const erro = await registrarDespesa(
+            categoria.trim(),
+            Number(valor),
+            deInputData(vencimento)
+        );
+        if (erro) {
+            alert(erro);
+            return;
+        }
         setCategoria("");
         setValor("");
         setVencimento("");
@@ -100,7 +108,10 @@ function Despesas() {
                                             <button
                                                 type="button"
                                                 className="btn btn-primario btn-pequeno"
-                                                onClick={() => pagarDespesa(despesa.idDespesa)}
+                                                onClick={async () => {
+                                                    const erro = await pagarDespesa(despesa.idDespesa);
+                                                    if (erro) alert(erro);
+                                                }}
                                             >
                                                 Marcar como paga
                                             </button>

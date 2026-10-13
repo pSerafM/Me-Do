@@ -65,8 +65,8 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
         setNovos(novos.map((n) => (n.idInsumo === idInsumo ? { ...n, quantidade } : n)));
     }
 
-    function salvar() {
-        const erro = salvarDescricaoTecnica(pedido.id, laudo, novos, progresso);
+    async function salvar() {
+        const erro = await salvarDescricaoTecnica(pedido.id, laudo, novos, progresso);
 
         if (erro) {
             alert(erro);
@@ -76,8 +76,8 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
         onFechar();
     }
 
-    function confirmarCancelamento() {
-        const erro = cancelarPedido(pedido.id, motivo);
+    async function confirmarCancelamento() {
+        const erro = await cancelarPedido(pedido.id, motivo);
 
         if (erro) {
             alert(erro);

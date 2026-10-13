@@ -83,7 +83,10 @@ function NotaFiscal() {
                                         type="button"
                                         className="btn btn-navy btn-pequeno"
                                         disabled={nota.status !== "com_erro"}
-                                        onClick={() => reenviarNota(nota.idNotaFiscal)}
+                                        onClick={async () => {
+                                            const erro = await reenviarNota(nota.idNotaFiscal);
+                                            if (erro) alert(erro);
+                                        }}
                                     >
                                         ➤
                                     </button>

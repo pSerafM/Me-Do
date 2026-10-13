@@ -12,11 +12,12 @@ function LandingPage() {
     const [senha, setSenha] = useState("");
     const [erro, setErro] = useState("");
 
-    function entrar(evento: FormEvent<HTMLFormElement>) {
+    async function entrar(evento: FormEvent<HTMLFormElement>) {
         evento.preventDefault();
 
-        if (!login(email, senha)) {
-            setErro("Informe e-mail e senha.");
+        const erroLogin = await login(email, senha);
+        if (erroLogin) {
+            setErro(erroLogin);
             return;
         }
 

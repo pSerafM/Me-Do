@@ -8,6 +8,7 @@ import type { Despesa } from "../models/Despezas";
 import type { NotaFiscal } from "../models/NotaFiscal";
 
 export interface Usuario {
+    idFuncionario: number;
     nome: string;
     email: string;
 }
@@ -33,9 +34,10 @@ export interface DadosServico {
 // Funções que validam devolvem a mensagem de erro, ou null quando deu certo.
 export interface AppContextData {
     usuario: Usuario | null;
-    login: (email: string, senha: string) => boolean;
-    logout: () => void;
-    atualizarUsuario: (dados: Usuario) => void;
+    carregandoSessao: boolean;
+    login: (email: string, senha: string) => Promise<string | null>;
+    logout: () => Promise<void>;
+    atualizarUsuario: (dados: Usuario, senha?: string) => Promise<string | null>;
 
     clientes: Cliente[];
     servicos: Servico[];
@@ -45,43 +47,43 @@ export interface AppContextData {
     despesas: Despesa[];
     notas: NotaFiscal[];
 
-    cadastrarCliente: (cliente: Cliente) => void;
+    cadastrarCliente: (cliente: Cliente) => Promise<Cliente | string>;
 
-    cadastrarServico: (servico: Servico) => string | null;
-    alterarServico: (id: number, dados: Partial<DadosServico>) => string | null;
+    cadastrarServico: (servico: Servico) => Promise<string | null>;
+    alterarServico: (id: number, dados: Partial<DadosServico>) => Promise<string | null>;
 
-    cadastrarInsumo: (insumo: Insumo) => string | null;
+    cadastrarInsumo: (insumo: Insumo) => Promise<string | null>;
     movimentarEstoque: (
         idInsumo: number,
         tipo: TipoMovimentacao,
         quantidade: number,
         observacao: string
-    ) => string | null;
+    ) => Promise<string | null>;
 
-    criarPedido: (pedido: Pedido) => Pedido;
-    moverEtapa: (idPedido: number, direcao: 1 | -1) => string | null;
+    criarPedido: (pedido: Pedido) => Promise<Pedido>;
+    moverEtapa: (idPedido: number, direcao: 1 | -1) => Promise<string | null>;
     salvarDescricaoTecnica: (
         idPedido: number,
         laudo: string,
         novosInsumos: InsumoUsado[],
         progresso: Progresso | null
-    ) => string | null;
-    cancelarPedido: (idPedido: number, motivo: string) => string | null;
+    ) => Promise<string | null>;
+    cancelarPedido: (idPedido: number, motivo: string) => Promise<string | null>;
 
     registrarPagamento: (
         idPedido: number,
         valor: number,
         forma: FormaPagamento
-    ) => string | null;
-    finalizarPedido: (idPedido: number, forma?: FormaPagamento) => string | null;
-    reenviarNota: (idNota: number) => void;
+    ) => Promise<string | null>;
+    finalizarPedido: (idPedido: number, forma?: FormaPagamento) => Promise<string | null>;
+    reenviarNota: (idNota: number) => Promise<string | null>;
 
-    registrarDespesa: (categoria: string, valor: number, vencimento: Date) => void;
-    pagarDespesa: (idDespesa: number) => void;
+    registrarDespesa: (categoria: string, valor: number, vencimento: Date) => Promise<string | null>;
+    pagarDespesa: (idDespesa: number) => Promise<string | null>;
 
-    cadastrarFuncionario: (funcionario: Funcionario) => string | null;
-    atualizarFuncionario: (id: number, dados: Partial<Funcionario>) => string | null;
-    excluirFuncionario: (id: number) => void;
+    cadastrarFuncionario: (funcionario: Funcionario, senha: string) => Promise<string | null>;
+    atualizarFuncionario: (id: number, dados: Partial<Funcionario>) => Promise<string | null>;
+    excluirFuncionario: (id: number) => Promise<string | null>;
 }
 
 export const AppContext = createContext<AppContextData | null>(null);

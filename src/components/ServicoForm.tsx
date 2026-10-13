@@ -8,7 +8,7 @@ interface ServicoFormProps {
     rotuloBotao: string;
     limparAoSalvar?: boolean;
     // devolve a mensagem de erro, ou null se salvou
-    onSalvar: (dados: DadosServico) => string | null;
+    onSalvar: (dados: DadosServico) => string | null | Promise<string | null>;
 }
 
 function ServicoForm({ inicial, rotuloBotao, limparAoSalvar, onSalvar }: ServicoFormProps) {
@@ -17,7 +17,7 @@ function ServicoForm({ inicial, rotuloBotao, limparAoSalvar, onSalvar }: Servico
     const [horas, setHoras] = useState(inicial ? String(inicial.horasEstimadas) : "");
     const [descricao, setDescricao] = useState(inicial?.descricao ?? "");
 
-    function salvar(event: FormEvent<HTMLFormElement>) {
+    async function salvar(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         if (!nome.trim() || !valor || !horas) {
@@ -30,7 +30,7 @@ function ServicoForm({ inicial, rotuloBotao, limparAoSalvar, onSalvar }: Servico
             return;
         }
 
-        const erro = onSalvar({
+        const erro = await onSalvar({
             nome: nome.trim(),
             valor: Number(valor),
             horasEstimadas: Number(horas),

@@ -22,8 +22,8 @@ function OrdensServico() {
     const pedidoTecnica = pedidos.find((p) => p.id === idTecnica);
     const pedidoLog = pedidos.find((p) => p.id === idLog);
 
-    function mover(idPedido: number, direcao: 1 | -1) {
-        const erro = moverEtapa(idPedido, direcao);
+    async function mover(idPedido: number, direcao: 1 | -1) {
+        const erro = await moverEtapa(idPedido, direcao);
 
         if (erro) {
             alert(erro);

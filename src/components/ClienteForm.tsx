@@ -4,7 +4,7 @@ import { Cliente } from "../models/Cliente";
 import { somenteDigitos } from "../utils/formatadores";
 
 interface ClienteFormProps {
-    onClienteCadastrado: (cliente: Cliente) => void;
+    onClienteCadastrado: (cliente: Cliente) => Promise<string | null>;
 }
 
 function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
@@ -12,7 +12,7 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
     const [cpfCnpj, setCpfCnpj] = useState("");
     const [telefone, setTelefone] = useState("");
 
-    function cadastrarCliente(event: FormEvent<HTMLFormElement>) {
+    async function cadastrarCliente(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         if (!nome.trim() || !cpfCnpj.trim() || !telefone.trim()) {
@@ -32,9 +32,13 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
             return;
         }
 
-        onClienteCadastrado(
+        const erro = await onClienteCadastrado(
             new Cliente(Date.now(), nome.trim(), cpfCnpj.trim(), telefone.trim())
         );
+        if (erro) {
+            alert(erro);
+            return;
+        }
 
         setNome("");
         setCpfCnpj("");

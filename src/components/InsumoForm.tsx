@@ -4,7 +4,7 @@ import { Insumo } from "../models/Insumo";
 
 interface InsumoFormProps {
     // devolve a mensagem de erro, ou null se cadastrou
-    onInsumoCadastrado: (insumo: Insumo) => string | null;
+    onInsumoCadastrado: (insumo: Insumo) => string | null | Promise<string | null>;
 }
 
 function InsumoForm({ onInsumoCadastrado }: InsumoFormProps) {
@@ -16,7 +16,7 @@ function InsumoForm({ onInsumoCadastrado }: InsumoFormProps) {
     const [unidade, setUnidade] = useState("un");
     const [minimo, setMinimo] = useState("");
 
-    function cadastrarInsumo(event: FormEvent<HTMLFormElement>) {
+    async function cadastrarInsumo(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         if (!nome.trim() || quantidade === "" || !unidade.trim()) {
@@ -31,7 +31,7 @@ function InsumoForm({ onInsumoCadastrado }: InsumoFormProps) {
             return;
         }
 
-        const erro = onInsumoCadastrado(
+        const erro = await onInsumoCadastrado(
             new Insumo(
                 Date.now(),
                 nome.trim(),

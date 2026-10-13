@@ -59,10 +59,12 @@ function IniciarAtendimento() {
         setCliente(encontrado);
     }
 
-    function aoCadastrarCliente(novo: Cliente) {
-        cadastrarCliente(novo);
-        setCliente(novo);
+    async function aoCadastrarCliente(novo: Cliente): Promise<string | null> {
+        const result = await cadastrarCliente(novo);
+        if (typeof result === "string") return result;
+        setCliente(result);
         setModalCliente(false);
+        return null;
     }
 
     function alternarServico(id: number) {
@@ -102,13 +104,17 @@ function IniciarAtendimento() {
         setDetalhes(DETALHES_VAZIOS);
     }
 
-    function gerarOS() {
+    async function gerarOS() {
         if (!cliente || itens.length === 0) {
             return;
         }
 
         const pedido = new Pedido(0, cliente, itens[0].servico, itens);
-        setPedidoCriado(criarPedido(pedido));
+        try {
+            setPedidoCriado(await criarPedido(pedido));
+        } catch (error) {
+            alert(error instanceof Error ? error.message : "Não foi possível criar o pedido.");
+        }
     }
 
     function reiniciar() {
@@ -123,12 +129,15 @@ function IniciarAtendimento() {
         setPagando(false);
     }
 
-    function pagarEntrada(valor: number, forma: Parameters<typeof registrarPagamento>[2]) {
+    async function pagarEntrada(
+        valor: number,
+        forma: Parameters<typeof registrarPagamento>[2]
+    ) {
         if (!pedidoCriado) {
             return;
         }
 
-        const erro = registrarPagamento(pedidoCriado.id, valor, forma);
+        const erro = await registrarPagamento(pedidoCriado.id, valor, forma);
 
         if (erro) {
             alert(erro);

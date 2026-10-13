@@ -64,10 +64,14 @@ function Funcionarios() {
                                 numero: dados.numero
                             })
                         }
-                        onExcluir={() => {
+                        onExcluir={async () => {
                             if (window.confirm(`Excluir ${selecionado.nome} do sistema?`)) {
-                                excluirFuncionario(selecionado.idFuncionario);
-                                setIdSelecionado(null);
+                                const erro = await excluirFuncionario(selecionado.idFuncionario);
+                                if (erro) {
+                                    alert(erro);
+                                } else {
+                                    setIdSelecionado(null);
+                                }
                             }
                         }}
                     />

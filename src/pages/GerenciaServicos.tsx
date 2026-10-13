@@ -22,7 +22,7 @@ function GerenciaServicos() {
         ).length;
     }
 
-    function alternarStatus(servico: Servico) {
+    async function alternarStatus(servico: Servico) {
         if (servico.status) {
             const ativos = pedidosAtivosDoServico(servico);
 
@@ -31,7 +31,7 @@ function GerenciaServicos() {
             }
         }
 
-        const erro = alterarServico(servico.id, { status: !servico.status });
+        const erro = await alterarServico(servico.id, { status: !servico.status });
 
         if (erro) {
             alert(erro);
@@ -124,10 +124,10 @@ function GerenciaServicos() {
                     <ServicoForm
                         inicial={servicoEditando}
                         rotuloBotao="Salvar"
-                        onSalvar={(dados) => {
+                        onSalvar={async (dados) => {
                             const erro = alterarServico(servicoEditando.id, dados);
 
-                            if (!erro) {
+                            if (!(await erro)) {
                                 setIdEditando(null);
                             }
 
@@ -139,8 +139,7 @@ function GerenciaServicos() {
                         type="button"
                         className="btn btn-neutro"
                         onClick={() => {
-                            alternarStatus(servicoEditando);
-                            setIdEditando(null);
+                            void alternarStatus(servicoEditando).then(() => setIdEditando(null));
                         }}
                     >
                         {servicoEditando.status ? "Desativar serviço" : "Ativar serviço"}

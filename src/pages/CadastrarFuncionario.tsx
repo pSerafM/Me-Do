@@ -12,15 +12,12 @@ function CadastrarFuncionario() {
 
             <FuncionarioForm
                 modo="cadastro"
-                onSalvar={(dados) => {
-                    const erro = cadastrarFuncionario(dados);
-
-                    if (!erro) {
-                        // TODO: enviar e-mail de definição de senha (UC01 / UC13).
-                        navigate("/app/gestao/funcionarios");
-                    }
-
-                    return erro;
+                onSalvar={(dados, senha) => {
+                    if (!senha) return "Informe uma senha inicial.";
+                    return cadastrarFuncionario(dados, senha).then((erro) => {
+                        if (!erro) navigate("/app/gestao/funcionarios");
+                        return erro;
+                    });
                 }}
             />
         </section>

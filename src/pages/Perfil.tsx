@@ -11,20 +11,30 @@ function Perfil() {
     const [email, setEmail] = useState(usuario?.email ?? "");
     const [novaSenha, setNovaSenha] = useState("");
 
-    function salvar() {
+    async function salvar() {
         if (!nome.trim() || !email.trim()) {
             alert("Nome e e-mail são obrigatórios.");
             return;
         }
 
-        // TODO: enviar novaSenha para o back-end quando houver autenticação real.
-        atualizarUsuario({ nome: nome.trim(), email: email.trim() });
+        if (novaSenha && novaSenha.length < 12) {
+            alert("A senha deve ter pelo menos 12 caracteres.");
+            return;
+        }
+        const erro = await atualizarUsuario(
+            { idFuncionario: usuario?.idFuncionario ?? 0, nome: nome.trim(), email: email.trim() },
+            novaSenha || undefined
+        );
+        if (erro) {
+            alert(erro);
+            return;
+        }
         setNovaSenha("");
         setEditando(false);
     }
 
-    function sair() {
-        logout();
+    async function sair() {
+        await logout();
         navigate("/");
     }
 

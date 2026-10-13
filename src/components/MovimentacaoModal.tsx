@@ -11,10 +11,10 @@ function MovimentacaoModal({ insumo, onFechar }: { insumo: Insumo; onFechar: () 
     const [quantidade, setQuantidade] = useState("");
     const [observacao, setObservacao] = useState("");
 
-    function registrar(evento: FormEvent<HTMLFormElement>) {
+    async function registrar(evento: FormEvent<HTMLFormElement>) {
         evento.preventDefault();
 
-        const erro = movimentarEstoque(insumo.id, tipo, Number(quantidade), observacao);
+        const erro = await movimentarEstoque(insumo.id, tipo, Number(quantidade), observacao);
 
         if (erro) {
             alert(erro);

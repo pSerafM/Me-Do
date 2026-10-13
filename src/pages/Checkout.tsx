@@ -23,8 +23,8 @@ function Checkout() {
         return pedido.saldo() > 0.005 ? "Entrada" : "Pago";
     }
 
-    function finalizar(idPedido: number, forma?: FormaPagamento) {
-        const erro = finalizarPedido(idPedido, forma);
+    async function finalizar(idPedido: number, forma?: FormaPagamento) {
+        const erro = await finalizarPedido(idPedido, forma);
 
         if (erro) {
             alert(erro);
