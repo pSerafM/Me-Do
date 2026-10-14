@@ -8,6 +8,8 @@ import { ItemPedido } from "../models/ItemPedido";
 import { Pedido } from "../models/Pedido";
 import { moeda } from "../utils/formatadores";
 
+//parte mais complexa da manipulação de pedido pq tem o fluxo de estados 
+
 const DETALHES_VAZIOS = { modelo: "", marca: "", numeroSerie: "", estado: "", observacao: "", foto: "" };
 
 function IniciarAtendimento() {
@@ -36,7 +38,8 @@ function IniciarAtendimento() {
 
     const total = itens.reduce((soma, item) => soma + item.valorCobrado(), 0);
 
-    function buscarCliente() {
+    //uma das formas de iniciar atendimento é buscar por um cliente já cadastrado
+    function buscarCliente() { 
         const termo = busca.trim().toLowerCase();
 
         if (!termo) {
@@ -95,7 +98,7 @@ function IniciarAtendimento() {
                         detalhes.numeroSerie.trim(),
                         detalhes.estado.trim(),
                         detalhes.observacao.trim(),
-                        detalhes.foto
+                        detalhes.foto //guarda apenas o nome do arquivo de foto
                     )
             );
 
@@ -120,7 +123,7 @@ function IniciarAtendimento() {
     function reiniciar() {
         setBusca("");
         setCliente(null);
-        setIniciado(false);
+        setIniciado(false); //estado false de iniciado ao reiniciar
         setBuscaServico("");
         setSelecionados([]);
         setDetalhes(DETALHES_VAZIOS);
@@ -202,7 +205,7 @@ function IniciarAtendimento() {
                     </div>
 
                     <div className="centro">
-                        {iniciado ? (
+                        {iniciado ? ( //reseta a tela de atendimento, nada foi gravado. O pedido só é registrado no banco de dados depois da função gerarOS
                             <button type="button" className="btn btn-neutro" onClick={reiniciar}>
                                 Cancelar Atendimento
                             </button>
@@ -211,7 +214,7 @@ function IniciarAtendimento() {
                                 type="button"
                                 className="btn btn-neutro"
                                 disabled={!cliente}
-                                onClick={() => setIniciado(true)}
+                                onClick={() => setIniciado(true)} //mudança do estado de iniciado para true ao iniciar o atendimento
                             >
                                 Iniciar Atendimento
                             </button>
@@ -219,9 +222,10 @@ function IniciarAtendimento() {
                     </div>
                 </div>
             </section>
-
-            <fieldset className="etapas-atendimento" disabled={!iniciado}>
-                {/* ---------- Serviço ---------- */}
+            
+            <fieldset className="etapas-atendimento" disabled={!iniciado}> 
+                {/* fieldset disabled --> esabilita nativamente todos os campos da erapa seguinte do atendimento */}
+                {/* Serviço */}
                 <section className="painel">
                     <div className="painel-titulo painel-titulo-linha">
                         <h2>Serviço</h2>
@@ -252,7 +256,7 @@ function IniciarAtendimento() {
                                         </td>
                                     </tr>
                                 )}
-                                {servicosAtivos.map((servico) => (
+                                {servicosAtivos.map((servico) => (//selecao de serviços registrados
                                     <tr key={servico.id}>
                                         <td>
                                             <input
@@ -272,7 +276,7 @@ function IniciarAtendimento() {
                     </div>
                 </section>
 
-                {/* ---------- Detalhes do Serviço ---------- */}
+                {/* Detalhes do Serviço: exige pelo menos um serviço e um modelo de item a receber o serviço preenchidos para criar um pedido (ItemPedido) */}
                 <section className="painel">
                     <h2 className="painel-titulo">Detalhes do Serviço</h2>
 
@@ -336,7 +340,7 @@ function IniciarAtendimento() {
                     </div>
                 </section>
 
-                {/* ---------- Resumo ---------- */}
+                {/* Resumo: listar itens do pedido com a alternativa de remover */}
                 <section className="painel">
                     <h2 className="painel-titulo">Resumo</h2>
 
@@ -389,7 +393,7 @@ function IniciarAtendimento() {
                     type="button"
                     className="btn btn-claro"
                     disabled={!iniciado || itens.length === 0}
-                    onClick={gerarOS}
+                    onClick={gerarOS} //monta o new Pedido(0, cliente, itens[0].servico, itens e chama criarPedido
                 >
                     Gerar e Enviar OS
                 </button>
@@ -401,7 +405,7 @@ function IniciarAtendimento() {
                 </Modal>
             )}
 
-            {pedidoCriado && !pagando && (
+            {pedidoCriado && !pagando && ( //Pedido Cadastrado: pergunta se quer apagar na entrada do pedido, se sim ent direciona para a parte de pagamento ou reinicia a aba de iniciar atendimento
                 <Modal titulo="Pedido Cadastrado" icone="+" onFechar={reiniciar}>
                     <p className="centro">
                         OS #{pedidoCriado.id} gerada ({moeda(pedidoCriado.valorTotal)}).

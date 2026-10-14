@@ -27,6 +27,7 @@ export function usePedidoDomain(
     );
     const { items, refresh } = collection;
 
+    //comentar
     const criarPedido = useCallback(
         async (pedido: Pedido): Promise<Pedido> => {
             const row = await apiRequest<{ id: number }>("/pedidos", {

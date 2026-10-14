@@ -1,4 +1,4 @@
-// Linha do "Modal de Log de Alterações no Atendimento do Pedido".
+// Representa uma linha do modal de histórico de alterações do pedido/OS (data, funcionário, título e descrição).
 export class RegistroLog {
     data: Date;
     funcionario: string;

@@ -1,3 +1,5 @@
+// O que chamamod também de OS (Ordem de Serviço) e contém: cliente, serviço, item, etapda, datas, laudo, pagamentos e log. 
+
 import { Cliente } from "./Cliente";
 import { Servico } from "./Servico";
 import type { ItemPedido } from "./ItemPedido";
@@ -15,7 +17,7 @@ export type EtapaOS =
     | "retirado"
     | "cancelado";
 
-export const ROTULO_ETAPA: Record<EtapaOS, string> = {
+export const ROTULO_ETAPA: Record<EtapaOS, string> = { //definição das constantes das etapas do kanban de ordens de serviço 
     aberto: "Em Aberto",
     analise: "Análise/ Orçamento",
     aguardando_insumo: "Aguardando Insumo",
@@ -32,9 +34,8 @@ export class Pedido {
     status: string;
     valorTotal: number;
 
-    // --- acrescentados para as telas da documentação ---
     itens: ItemPedido[];
-    etapa: EtapaOS = "aberto";
+    etapa: EtapaOS = "aberto"; //representa o andamento do kanban
     dataAbertura: Date = new Date();
     dataPrevisao: Date;
     dataConclusao: Date | null = null;
@@ -62,7 +63,7 @@ export class Pedido {
         );
     }
 
-    // Soma dos itens do atendimento; sem itens, usa o serviço único.
+    // Soma dos itens do atendimento. Sem itens, usa o serviço único.
     calcularTotal(): number {
         if (this.itens.length === 0) {
             return this.servico.calcularValor();
