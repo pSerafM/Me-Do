@@ -48,7 +48,7 @@ function Estoque() {
                     <table className="tabela">
                         <thead>
                             <tr>
-                                <th>Foto</th>
+                                <th>ID</th>
                                 <th>SKU</th>
                                 <th>Nome</th>
                                 <th>Categoria</th>
@@ -69,7 +69,7 @@ function Estoque() {
 
                                 //Linha destacada quando o saldo está no mínimo ou abaixo.
                                 <tr key={insumo.id} className={insumo.abaixoDoMinimo() ? "alerta-estoque" : ""}>
-                                    <td>📦</td>
+                                    <td>{insumo.id}</td>
                                     <td>{insumo.sku}</td>
                                     <td>{insumo.nome}</td>
                                     <td>{insumo.categoria}</td>
