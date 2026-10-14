@@ -1,3 +1,5 @@
+import type { Cargo } from "../auth/permissions";
+
 export class Funcionario {
     idFuncionario: number;
     nome: string;
@@ -5,7 +7,7 @@ export class Funcionario {
     telefone: string;
     email: string;
     genero: string;
-    dataDeNascimento: Date;
+    dataDeNascimento: Date | null;
     cep: string;
     rua: string;
     cidade: string;
@@ -13,6 +15,7 @@ export class Funcionario {
     complemento: string;
     status: string;
     numero: number;
+    cargo: Cargo;
 
     constructor(
         idFuncionario: number,
@@ -21,14 +24,15 @@ export class Funcionario {
         telefone: string,
         email: string,
         genero: string,
-        dataDeNascimento: Date,
+        dataDeNascimento: Date | null,
         cep: string,
         rua: string,
         cidade: string,
         estado: string,
         complemento: string,
         status: string,
-        numero: number
+        numero: number,
+        cargo: Cargo = "Atendente"
     ) {
         this.idFuncionario = idFuncionario;
         this.nome = nome;
@@ -44,6 +48,7 @@ export class Funcionario {
         this.complemento = complemento;
         this.status = status;
         this.numero = numero;
+        this.cargo = cargo;
     }
 
     ativar(): void {

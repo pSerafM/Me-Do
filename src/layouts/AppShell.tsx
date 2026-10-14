@@ -24,7 +24,7 @@ function AppShell() {
                 <header className="barra-superior">
                     <span>{NOME_DA_LOJA}</span>
                     <NavLink to="/app/perfil" className="barra-usuario">
-                        {usuario?.nome}
+                        {usuario?.nome} ({usuario?.cargo})
                     </NavLink>
                 </header>
 

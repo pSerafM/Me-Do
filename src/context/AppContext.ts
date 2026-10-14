@@ -6,11 +6,13 @@ import type { Pedido } from "../models/Pedido";
 import type { Funcionario } from "../models/Funcionario";
 import type { Despesa } from "../models/Despezas";
 import type { NotaFiscal } from "../models/NotaFiscal";
+import type { Cargo } from "../auth/permissions";
 
 export interface Usuario {
     idFuncionario: number;
     nome: string;
     email: string;
+    cargo: Cargo;
 }
 
 export type TipoMovimentacao = "entrada" | "saida" | "ajuste";

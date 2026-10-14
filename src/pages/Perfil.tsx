@@ -22,7 +22,12 @@ function Perfil() {
             return;
         }
         const erro = await atualizarUsuario(
-            { idFuncionario: usuario?.idFuncionario ?? 0, nome: nome.trim(), email: email.trim() },
+            {
+                idFuncionario: usuario?.idFuncionario ?? 0,
+                nome: nome.trim(),
+                email: email.trim(),
+                cargo: usuario?.cargo ?? "Atendente"
+            },
             novaSenha || undefined
         );
         if (erro) {
@@ -55,6 +60,11 @@ function Perfil() {
                     disabled={!editando}
                     onChange={(e) => setEmail(e.target.value)}
                 />
+            </div>
+
+            <div className="campo">
+                <label>Cargo:</label>
+                <input value={usuario?.cargo ?? ""} readOnly />
             </div>
 
             <div className="campo">
