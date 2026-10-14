@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .env
+/backend/ca.pem
 .env.*
 !.env.example
 

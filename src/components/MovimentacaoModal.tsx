@@ -5,7 +5,7 @@ import { useApp } from "../hooks/useApp";
 import type { TipoMovimentacao } from "../context/AppContext";
 import type { Insumo } from "../models/Insumo";
 
-function MovimentacaoModal({ insumo, onFechar }: { insumo: Insumo; onFechar: () => void }) {
+function MovimentacaoModal({ insumo, onFechar }: { insumo: Insumo; onFechar: () => void }) { // Pega do contexto global a função do AppProvider que faz a movimentação. É aqui que o template method é chamado.
     const { movimentarEstoque } = useApp();
     const [tipo, setTipo] = useState<TipoMovimentacao>("entrada");
     const [quantidade, setQuantidade] = useState("");
