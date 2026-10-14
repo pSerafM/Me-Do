@@ -3,7 +3,7 @@ import FuncionarioForm from "../components/FuncionarioForm";
 import { useApp } from "../hooks/useApp";
 
 function CadastrarFuncionario() {
-    const { cadastrarFuncionario } = useApp();
+    const { cadastrarFuncionario, usuario } = useApp();
     const navigate = useNavigate();
 
     return (
@@ -12,6 +12,7 @@ function CadastrarFuncionario() {
 
             <FuncionarioForm
                 modo="cadastro"
+                podeAtribuirCargo={usuario?.cargo === "Dono"}
                 onSalvar={(dados, senha) => {
                     if (!senha) return "Informe uma senha inicial.";
                     return cadastrarFuncionario(dados, senha).then((erro) => {

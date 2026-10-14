@@ -12,6 +12,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthenticatedUser } from './auth.types.js';
 import type { BootstrapDto } from './auth.dto.js';
+import type { Cargo } from './roles.js';
 
 interface EmployeeRow extends RowDataPacket {
   idFuncionario: string;
@@ -19,6 +20,7 @@ interface EmployeeRow extends RowDataPacket {
   email: string;
   senhaHash: string;
   status: string;
+  cargo: Cargo;
 }
 
 @Injectable()
@@ -32,7 +34,7 @@ export class AuthService {
   async login(email: string, password: string): Promise<AuthenticatedUser> {
     const [employee] = await this.db.query<EmployeeRow>(
       `SELECT id_funcionario AS \`idFuncionario\`, nome, email,
-              senha_hash AS \`senhaHash\`, status
+              senha_hash AS \`senhaHash\`, status, cargo
        FROM funcionario WHERE LOWER(email) = LOWER($1)`,
       [email.trim()],
     );
@@ -78,9 +80,9 @@ export class AuthService {
         }
         const result = await client.query(
         `INSERT INTO funcionario
-           (nome, cpf, email, senha_hash, telefone, genero, data_de_nascimento,
+           (nome, cpf, email, senha_hash, cargo, telefone, genero, data_de_nascimento,
             cep, rua, cidade, estado, complemento, numero)
-         VALUES ($1, $2, LOWER($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+         VALUES ($1, $2, LOWER($3), $4, 'Dono', $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           data.nome.trim(),
           data.cpf.trim(),
@@ -98,8 +100,8 @@ export class AuthService {
         ],
         );
         const [row] = (
-          await client.query<RowDataPacket & { nome: string; email: string }>(
-            `SELECT nome, email FROM funcionario WHERE id_funcionario = $1`,
+          await client.query<RowDataPacket & { nome: string; email: string; cargo: Cargo }>(
+            `SELECT nome, email, cargo FROM funcionario WHERE id_funcionario = $1`,
             [result.insertId],
           )
         ).rows;
@@ -108,6 +110,7 @@ export class AuthService {
           idFuncionario: result.insertId,
           nome: row.nome,
           email: row.email,
+          cargo: row.cargo,
         };
       } finally {
         await client.query("SELECT RELEASE_LOCK('medo_funcionario_bootstrap')");
@@ -128,8 +131,9 @@ export class AuthService {
       idFuncionario: string;
       nome: string;
       email: string;
+      cargo: Cargo;
     }>(
-      `SELECT id_funcionario AS \`idFuncionario\`, nome, email
+      `SELECT id_funcionario AS \`idFuncionario\`, nome, email, cargo
        FROM funcionario WHERE id_funcionario = $1 AND status = 'ativo'`,
       [id],
     );
@@ -138,6 +142,7 @@ export class AuthService {
       idFuncionario: Number(row.idFuncionario),
       nome: row.nome,
       email: row.email,
+      cargo: row.cargo,
     };
   }
 
@@ -146,6 +151,7 @@ export class AuthService {
       idFuncionario: Number(employee.idFuncionario),
       nome: employee.nome,
       email: employee.email,
+      cargo: employee.cargo,
     };
   }
 }

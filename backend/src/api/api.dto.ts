@@ -14,6 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CARGOS } from '../auth/roles.js';
 
 export class ClienteDto {
   @IsString() @IsNotEmpty() nome!: string;
@@ -50,6 +51,7 @@ export class FuncionarioDto {
   @IsString() @IsNotEmpty() cpf!: string;
   @IsEmail() email!: string;
   @IsString() @MinLength(12) senha!: string;
+  @IsOptional() @IsIn(CARGOS) cargo?: (typeof CARGOS)[number];
   @IsOptional() @IsString() telefone?: string;
   @IsOptional() @IsString() genero?: string;
   @IsOptional() @IsDateString() dataDeNascimento?: string;
@@ -66,6 +68,7 @@ export class AtualizarFuncionarioDto {
   @IsOptional() @IsString() cpf?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() @MinLength(12) senha?: string;
+  @IsOptional() @IsIn(CARGOS) cargo?: (typeof CARGOS)[number];
   @IsOptional() @IsString() telefone?: string;
   @IsOptional() @IsString() genero?: string;
   @IsOptional() @IsDateString() dataDeNascimento?: string;

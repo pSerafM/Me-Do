@@ -6,6 +6,7 @@ import { useCollection } from "./useCollection";
 
 export function useFuncionarioDomain(
     authenticated: boolean,
+    podeAtribuirCargo: boolean,
     reportError: (message: string) => void
 ) {
     const collection = useCollection<ApiFuncionario, Funcionario>(
@@ -27,8 +28,10 @@ export function useFuncionarioDomain(
                         telefone: funcionario.telefone,
                         email: funcionario.email,
                         senha,
+                        ...(podeAtribuirCargo ? { cargo: funcionario.cargo } : {}),
                         genero: funcionario.genero,
-                        dataDeNascimento: funcionario.dataDeNascimento.toISOString().slice(0, 10),
+                        dataDeNascimento:
+                            funcionario.dataDeNascimento?.toISOString().slice(0, 10) ?? null,
                         cep: funcionario.cep,
                         rua: funcionario.rua,
                         cidade: funcionario.cidade,
@@ -43,14 +46,15 @@ export function useFuncionarioDomain(
                 return apiErrorMessage(error);
             }
         },
-        [setItems]
+        [podeAtribuirCargo, setItems]
     );
 
     const atualizarFuncionario = useCallback(
         async (id: number, dados: Partial<Funcionario>): Promise<string | null> => {
+            const { cargo, ...dadosSemCargo } = dados;
             const body = {
-                ...dados,
-                dataDeNascimento: dados.dataDeNascimento?.toISOString().slice(0, 10)
+                ...(podeAtribuirCargo ? { ...dadosSemCargo, cargo } : dadosSemCargo),
+                dataDeNascimento: dadosSemCargo.dataDeNascimento?.toISOString().slice(0, 10)
             };
             try {
                 const row = await apiRequest<ApiFuncionario>(`/funcionarios/${id}`, {
@@ -67,7 +71,7 @@ export function useFuncionarioDomain(
                 return apiErrorMessage(error);
             }
         },
-        [setItems]
+        [podeAtribuirCargo, setItems]
     );
 
     const excluirFuncionario = useCallback(
