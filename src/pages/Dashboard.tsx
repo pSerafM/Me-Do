@@ -16,10 +16,12 @@ function mesAtual(): string {
 }
 
 function Variacao({ valor, inverter }: { valor: number | null; inverter?: boolean }) {
+    // Sem uma base anterior positiva, não existe percentual comparável para exibir.
     if (valor === null) {
         return <span className="variacao neutra">— sem mês anterior</span>;
     }
 
+    // Para métricas como tempo médio, uma redução é favorável; nas outras, aumento.
     const bom = inverter ? valor <= 0 : valor >= 0;
 
     return (
@@ -38,6 +40,7 @@ function Dashboard() {
     const mes = mesNumero - 1;
     const anterior = new Date(ano, mes - 1, 1);
 
+    // Calcula as métricas do período escolhido e do mês imediatamente anterior.
     const atual = resumoDoMes(pedidos, ano, mes);
     const passado = resumoDoMes(pedidos, anterior.getFullYear(), anterior.getMonth());
 
@@ -46,6 +49,7 @@ function Dashboard() {
         year: "numeric"
     });
 
+    // Cada cartão compara o mesmo indicador entre os dois períodos.
     const cartoes = [
         {
             rotulo: "FATURAMENTO TOTAL",

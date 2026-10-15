@@ -13,11 +13,12 @@ import { useCollection } from "./useCollection";
 
 export function useFinanceDomain(
     authenticated: boolean,
+    podeGerenciarDespesas: boolean,
     reportError: (message: string) => void
 ) {
     const despesas = useCollection<ApiDespesa, Despesa>(
         "/despesas",
-        authenticated,
+        authenticated && podeGerenciarDespesas,
         reviverDespesa,
         reportError
     );

@@ -9,6 +9,7 @@ import { NotaFiscal, type StatusNota } from "../models/NotaFiscal";
 import { Pedido, type EtapaOS } from "../models/Pedido";
 import { RegistroLog } from "../models/RegistroLog";
 import { Servico } from "../models/Servico";
+import type { Cargo } from "../auth/permissions";
 
 export interface ApiServico {
     id: number;
@@ -108,7 +109,7 @@ export function reviverFuncionario(row: {
     telefone: string;
     email: string;
     genero: string;
-    dataDeNascimento: string;
+    dataDeNascimento: string | null;
     cep: string;
     rua: string;
     cidade: string;
@@ -116,6 +117,7 @@ export function reviverFuncionario(row: {
     complemento: string;
     status: string;
     numero: number;
+    cargo: Cargo;
 }): Funcionario {
     return new Funcionario(
         Number(row.idFuncionario),
@@ -124,14 +126,15 @@ export function reviverFuncionario(row: {
         row.telefone,
         row.email,
         row.genero,
-        localCalendarDate(row.dataDeNascimento),
+        row.dataDeNascimento ? localCalendarDate(row.dataDeNascimento) : null,
         row.cep,
         row.rua,
         row.cidade,
         row.estado,
         row.complemento,
         row.status,
-        Number(row.numero)
+        Number(row.numero),
+        row.cargo
     );
 }
 

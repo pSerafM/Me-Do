@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -16,6 +17,10 @@ import { hash } from 'bcryptjs';
 import type { RowDataPacket } from 'mysql2/promise';
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
+import { PermissionGuard } from '../auth/permission.guard.js';
+import { RequirePermission } from '../auth/require-permission.decorator.js';
+import { PERMISSOES, temPermissao } from '../auth/roles.js';
+import type { Cargo } from '../auth/roles.js';
 import { DatabaseService, type SqlValue } from '../database/database.service.js';
 import {
   AtualizarFuncionarioDto,
@@ -52,8 +57,26 @@ interface InventoryRow extends RowDataPacket {
   quantidadeMinima: string;
 }
 
+interface EmployeeApiRow extends RowDataPacket {
+  idFuncionario: number;
+  nome: string;
+  cpf: string;
+  telefone: string;
+  email: string;
+  genero: string;
+  dataDeNascimento: Date | string | null;
+  cep: string;
+  rua: string;
+  cidade: string;
+  estado: string;
+  complemento: string;
+  status: string;
+  numero: number;
+  cargo: Cargo;
+}
+
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PermissionGuard)
 export class ApiController {
   constructor(private readonly db: DatabaseService) {}
 
@@ -96,6 +119,7 @@ export class ApiController {
   }
 
   @Post('servicos')
+  @RequirePermission(PERMISSOES.servicosGerenciar)
   async cadastrarServico(@Body() dto: ServicoDto) {
     try {
       const result = await this.db.execute(
@@ -119,6 +143,7 @@ export class ApiController {
   }
 
   @Patch('servicos/:id')
+  @RequirePermission(PERMISSOES.servicosGerenciar)
   async atualizarServico(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: Partial<ServicoDto>,
@@ -161,6 +186,7 @@ export class ApiController {
   }
 
   @Get('estoque')
+  @RequirePermission(PERMISSOES.estoqueConsultar)
   listarEstoque() {
     return this.db.query(
       `SELECT id, nome, quantidade, unidade, sku, categoria,
@@ -171,6 +197,7 @@ export class ApiController {
   }
 
   @Post('estoque')
+  @RequirePermission(PERMISSOES.estoqueGerenciar)
   async cadastrarInsumo(@Body() dto: EstoqueDto) {
     const sku = dto.sku?.trim() || null;
     try {
@@ -205,6 +232,7 @@ export class ApiController {
   }
 
   @Post('estoque/:id/movimentacoes')
+  @RequirePermission(PERMISSOES.estoqueGerenciar)
   async movimentarEstoque(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: MovimentacaoDto,
@@ -245,24 +273,32 @@ export class ApiController {
   }
 
   @Get('funcionarios')
+  @RequirePermission(PERMISSOES.funcionariosGerenciar)
   listarFuncionarios() {
     return this.db.query(
       `SELECT id_funcionario AS \`idFuncionario\`, nome, cpf, telefone, email, genero,
               data_de_nascimento AS \`dataDeNascimento\`, cep, rua, cidade, estado,
-              complemento, status, numero
+              complemento, status, numero, cargo
        FROM funcionario ORDER BY nome`,
     );
   }
 
   @Post('funcionarios')
-  async cadastrarFuncionario(@Body() dto: FuncionarioDto) {
+  @RequirePermission(PERMISSOES.funcionariosGerenciar)
+  async cadastrarFuncionario(
+    @Body() dto: FuncionarioDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    if (dto.cargo !== undefined && !temPermissao(request.user.cargo, PERMISSOES.cargosAtribuir)) {
+      throw new ForbiddenException('Somente o dono pode atribuir cargos.');
+    }
     const senhaHash = await hash(dto.senha, 12);
     try {
       const result = await this.db.execute(
         `INSERT INTO funcionario
-           (nome, cpf, telefone, email, senha_hash, genero, data_de_nascimento,
+           (nome, cpf, telefone, email, senha_hash, cargo, genero, data_de_nascimento,
             cep, rua, cidade, estado, complemento, numero)
-         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          `,
         [
           dto.nome.trim(),
@@ -270,6 +306,7 @@ export class ApiController {
           dto.telefone ?? '',
           dto.email.trim(),
           senhaHash,
+          dto.cargo ?? 'Atendente',
           dto.genero ?? '',
           dto.dataDeNascimento || null,
           dto.cep ?? '',
@@ -280,13 +317,14 @@ export class ApiController {
           dto.numero ?? 0,
         ],
       );
-      const [employee] = await this.db.query(
+      const [employee] = await this.db.query<EmployeeApiRow>(
         `SELECT id_funcionario AS \`idFuncionario\`, nome, cpf, telefone, email, genero,
                 data_de_nascimento AS \`dataDeNascimento\`, cep, rua, cidade, estado,
-                complemento, status, numero
+                complemento, status, numero, cargo
          FROM funcionario WHERE id_funcionario = $1`,
         [result.insertId],
       );
+      if (!employee) throw new NotFoundException('Não foi possível recuperar o funcionário criado.');
       return employee;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -300,7 +338,36 @@ export class ApiController {
   async atualizarFuncionario(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AtualizarFuncionarioDto,
+    @Req() request: AuthenticatedRequest,
   ) {
+    if (
+      id !== request.user.idFuncionario &&
+      !temPermissao(request.user.cargo, PERMISSOES.funcionariosGerenciar)
+    ) {
+      throw new ForbiddenException('Seu cargo não permite gerenciar funcionários.');
+    }
+    if (dto.cargo !== undefined && !temPermissao(request.user.cargo, PERMISSOES.cargosAtribuir)) {
+      throw new ForbiddenException('Somente o dono pode atribuir cargos.');
+    }
+    if (dto.cargo !== undefined && dto.cargo !== 'Dono') {
+      const [target] = await this.db.query<RowDataPacket & { cargo: string }>(
+        `SELECT cargo FROM funcionario
+         WHERE id_funcionario = $1 AND status = 'ativo'`,
+        [id],
+      );
+      if (target?.cargo === 'Dono') {
+        const [otherOwner] = await this.db.query<RowDataPacket & { id: number }>(
+          `SELECT id_funcionario AS id FROM funcionario
+           WHERE cargo = 'Dono' AND status = 'ativo' AND id_funcionario <> $1
+           LIMIT 1`,
+          [id],
+        );
+        if (!otherOwner) {
+          throw new BadRequestException('Não é possível remover o cargo do último dono ativo.');
+        }
+      }
+    }
+
     const senhaHash = dto.senha ? await hash(dto.senha, 12) : undefined;
     const columns: Record<string, string> = {
       nome: 'nome',
@@ -315,6 +382,7 @@ export class ApiController {
       estado: 'estado',
       complemento: 'complemento',
       numero: 'numero',
+      cargo: 'cargo',
     };
     const values: SqlValue[] = [];
     const sets = Object.entries(dto).flatMap(([key, value]) => {
@@ -337,14 +405,24 @@ export class ApiController {
          `,
         values,
       );
-      const [employee] = await this.db.query(
+      const [employee] = await this.db.query<EmployeeApiRow>(
         `SELECT id_funcionario AS \`idFuncionario\`, nome, cpf, telefone, email, genero,
                 data_de_nascimento AS \`dataDeNascimento\`, cep, rua, cidade, estado,
-                complemento, status, numero
+                complemento, status, numero, cargo
          FROM funcionario WHERE id_funcionario = $1`,
         [id],
       );
       if (!employee) throw new NotFoundException('Funcionário não encontrado.');
+      if (id === request.user.idFuncionario) {
+        return {
+          user: {
+            idFuncionario: Number(employee.idFuncionario),
+            nome: employee.nome,
+            email: employee.email,
+            cargo: employee.cargo,
+          },
+        };
+      }
       return employee;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -355,12 +433,29 @@ export class ApiController {
   }
 
   @Post('funcionarios/:id/inativar')
+  @RequirePermission(PERMISSOES.funcionariosGerenciar)
   async excluirFuncionario(
     @Param('id', ParseIntPipe) id: number,
     @Req() request: AuthenticatedRequest,
   ) {
     if (id === request.user.idFuncionario) {
       throw new BadRequestException('Não é possível inativar o próprio funcionário.');
+    }
+    const [employee] = await this.db.query<RowDataPacket & { cargo: string }>(
+      `SELECT cargo FROM funcionario WHERE id_funcionario = $1 AND status = 'ativo'`,
+      [id],
+    );
+    if (!employee) throw new NotFoundException('Funcionário não encontrado ou já inativo.');
+    if (employee.cargo === 'Dono') {
+      const [otherOwner] = await this.db.query<RowDataPacket & { id: number }>(
+        `SELECT id_funcionario AS id FROM funcionario
+         WHERE cargo = 'Dono' AND status = 'ativo' AND id_funcionario <> $1
+         LIMIT 1`,
+        [id],
+      );
+      if (!otherOwner) {
+        throw new BadRequestException('Não é possível inativar o último dono ativo.');
+      }
     }
     const result = await this.db.execute(
       `UPDATE funcionario SET status = 'inativo'
@@ -372,7 +467,8 @@ export class ApiController {
   }
 
   @Get('pedidos')
-  listarPedidos() {
+  @RequirePermission(PERMISSOES.pedidosConsultar)
+  listarPedidos(@Req() request: AuthenticatedRequest) {
     return this.db.query(
       `SELECT
          p.id,
@@ -414,21 +510,23 @@ export class ApiController {
            ))
            FROM checkout co WHERE co.pedido_id = p.id
          ), JSON_ARRAY()) AS pagamentos,
-         COALESCE((
+         CASE WHEN $1 IN ('Prestador', 'Gestor', 'Dono') THEN COALESCE((
            SELECT JSON_ARRAYAGG(JSON_OBJECT(
              'data', l.data, 'funcionario', l.funcionario_nome,
              'titulo', l.titulo, 'descricao', l.descricao
            ))
            FROM \`log\` l WHERE l.pedido_id = p.id
-         ), JSON_ARRAY()) AS log
+         ), JSON_ARRAY()) ELSE JSON_ARRAY() END AS log
        FROM pedido p
        JOIN cliente c ON c.id = p.cliente_id
        JOIN servico s ON s.id = p.servico_id
        ORDER BY p.data_abertura DESC, p.id DESC`,
+       [request.user.cargo],
     );
   }
 
   @Post('pedidos')
+  @RequirePermission(PERMISSOES.pedidosCriar)
   async criarPedido(@Body() dto: CriarPedidoDto, @Req() request: AuthenticatedRequest) {
     return this.db.transaction(async (client) => {
       const serviceIds = dto.itens.length ? dto.itens.map((item) => item.servicoId) : [dto.servicoId];
@@ -511,6 +609,7 @@ export class ApiController {
   }
 
   @Patch('pedidos/:id/etapa')
+  @RequirePermission(PERMISSOES.pedidosOperar)
   async moverEtapa(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: MoverEtapaDto,
@@ -538,6 +637,7 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/laudo')
+  @RequirePermission(PERMISSOES.pedidosOperar)
   async salvarLaudo(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: SalvarLaudoDto,
@@ -603,6 +703,7 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/cancelamento')
+  @RequirePermission(PERMISSOES.pedidosCancelar)
   async cancelarPedido(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CancelarPedidoDto,
@@ -626,6 +727,7 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/pagamentos')
+  @RequirePermission(PERMISSOES.checkout)
   async registrarPagamento(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: PagamentoDto,
@@ -671,6 +773,7 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/finalizacao')
+  @RequirePermission(PERMISSOES.checkout)
   async finalizarPedido(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: FinalizarPedidoDto,
@@ -746,6 +849,7 @@ export class ApiController {
   }
 
   @Get('despesas')
+  @RequirePermission(PERMISSOES.despesasGerenciar)
   listarDespesas() {
     return this.db.query(
       `SELECT id_despesa AS \`idDespesa\`, descricao, valor,
@@ -754,6 +858,7 @@ export class ApiController {
   }
 
   @Post('despesas')
+  @RequirePermission(PERMISSOES.despesasGerenciar)
   async registrarDespesa(@Body() dto: DespesaDto) {
     const result = await this.db.execute(
       `INSERT INTO despesa_interna (descricao, valor, data)
@@ -769,6 +874,7 @@ export class ApiController {
   }
 
   @Post('despesas/:id/pagamento')
+  @RequirePermission(PERMISSOES.despesasGerenciar)
   async pagarDespesa(@Param('id', ParseIntPipe) id: number) {
     const result = await this.db.execute(
       `UPDATE despesa_interna SET status = 'paga' WHERE id_despesa = $1`,
@@ -784,6 +890,7 @@ export class ApiController {
   }
 
   @Get('notas-fiscais')
+  @RequirePermission(PERMISSOES.notasFiscais)
   listarNotas() {
     return this.db.query(
       `SELECT id_nota_fiscal AS \`idNotaFiscal\`, pedido_id AS \`idPedido\`,
@@ -794,6 +901,7 @@ export class ApiController {
   }
 
   @Post('notas-fiscais/:id/reenvio')
+  @RequirePermission(PERMISSOES.notasFiscais)
   async reenviarNota(@Param('id', ParseIntPipe) id: number) {
     const result = await this.db.execute(
       `UPDATE nota_fiscal SET status = 'em_processamento', mensagem_erro = ''

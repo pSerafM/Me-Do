@@ -21,6 +21,14 @@ e isola as dependências. Os comandos abaixo instalam e executam cada pacote.
    `servico`; `estoque` e `pedido_insumo`; `pedido`, `pedido_servico` e `log`;
    por fim `checkout`, `despesa_interna` e `nota_fiscal`. A tabela
    `schema_migrations` registra a versão aplicada.
+   Reexecute esse comando após atualizar o projeto: novas migrações pendentes,
+   incluindo a coluna `funcionario.cargo`, serão aplicadas. Funcionários
+   existentes recebem `Atendente` por padrão; promova a conta proprietária
+   existente para `Dono` antes de usar a gestão de cargos, por exemplo:
+
+   ```sql
+   UPDATE funcionario SET cargo = 'Dono' WHERE email = 'email-do-proprietario';
+   ```
 4. Inicie a API com `npm run dev:api` e o frontend em outro terminal com
    `npm run dev`.
 5. Como não há seed, crie o primeiro funcionário administrador uma única vez
@@ -52,6 +60,12 @@ npm run seed:user --prefix backend
 O comando conecta ao MySQL, grava a senha com bcrypt e só cria esse funcionário
 se a tabela estiver vazia. Defina uma senha forte e não compartilhe o `.env`.
 Para inserir outros usuários depois, use a tela de funcionários após fazer login.
+O primeiro funcionário criado por bootstrap ou pela seed recebe o cargo `Dono`.
+
+Os cargos são cumulativos: `Prestador` herda as permissões de `Atendente`,
+`Gestor` herda as de `Prestador` e `Dono` herda as de `Gestor`. A API valida
+permissões em cada endpoint e somente `Dono` pode atribuir cargos. Checkout,
+notas fiscais e cancelamento de pedidos estão disponíveis a todos os cargos.
 
 As operações de pedidos gravam pedido, serviços, insumos, checkout, nota fiscal
 e log em transações MySQL. O frontend carrega os dados da API por domínio e
