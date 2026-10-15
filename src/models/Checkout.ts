@@ -21,6 +21,7 @@ export class Checkout {
     }
 
     registrarPagamento(): void {
+        //Impede o registro de um pagamento com valor inválido.
         if (this.valorPago <= 0) {
             throw new Error("O valor do pagamento deve ser maior que zero.");
         }
@@ -29,6 +30,7 @@ export class Checkout {
     }
 
     alterarFormaPagamento(novaForma: string): void {
+        //Verifica se a nova forma de pagamento é reconhecida.
         obterEstrategia(novaForma);
         this.formaPagamento = novaForma;
     }

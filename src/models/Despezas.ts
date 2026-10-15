@@ -24,6 +24,7 @@ export class Despesa {
     }
 
     pagar(): void {
+        // Atualiza o status da despesa para "paga" quando o pagamento é realizado.
         this.status = "paga";
     }
 
