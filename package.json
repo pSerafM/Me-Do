@@ -1,13 +1,14 @@
 {
   "name": "me-do",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:api": "npm --prefix backend run start:dev",
     "build": "tsc -b && vite build",
     "build:api": "npm --prefix backend run build",
+    "build:release": "npm run build && npm run build:api",
     "lint": "eslint .",
     "lint:api": "npm --prefix backend run lint",
     "preview": "vite preview"

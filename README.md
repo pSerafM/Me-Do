@@ -73,6 +73,22 @@ As operações de pedidos gravam pedido, serviços, insumos, checkout, nota fisc
 e log em transações MySQL. O frontend carrega os dados da API por domínio e
 atualiza as coleções após gravações.
 
+## Release 1.0.0
+
+O frontend Vite gera um bundle de produção minificado, com dependências
+compartilhadas reunidas e código não utilizado removido. A API NestJS compila
+TypeScript para JavaScript de produção. Para gerar ambos os builds:
+
+```bash
+npm run build:release
+```
+
+Os resultados ficam em `dist/` e `backend/dist/`. As medições do tamanho do
+código-fonte, quantidade de linhas, builds e ZIP estão em
+[CHANGELOG.md](./CHANGELOG.md). O pacote de produção é
+`release/me-do-v1.0.0.zip`; não contém `.env` nem dados iniciais. Consulte
+[release/README.txt](./release/README.txt) para instruções de execução.
+
 ## Fluxo de CRUD de pedidos (OS)
 
 O frontend não grava dados no banco diretamente. A tela chama o contexto React,
