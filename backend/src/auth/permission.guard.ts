@@ -15,6 +15,7 @@ export class PermissionGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // Procura metadados primeiro no método e depois na classe que declarou a rota.
     const permission = this.reflector.getAllAndOverride<Permissao>(REQUIRED_PERMISSION, [
       context.getHandler(),
       context.getClass(),
@@ -22,6 +23,7 @@ export class PermissionGuard implements CanActivate {
     if (!permission) return true;
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    // A identidade já foi estabelecida pelo AuthGuard; aqui se decide apenas a autorização.
     if (!temPermissao(request.user.cargo, permission)) {
       throw new ForbiddenException('Seu cargo não permite realizar esta operação.');
     }

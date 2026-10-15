@@ -24,6 +24,11 @@ import type { Cargo } from '../auth/roles.js';
 import { DatabaseService, type SqlValue } from '../database/database.service.js';
 import { calcularValorCobranca, statusDoProcessamento } from './order-strategies.js';
 import {
+  PayExpenseWorkflow,
+  RegisterExpenseWorkflow,
+} from './expense-workflow.js';
+import { IssueInvoiceWorkflow, RetryInvoiceWorkflow } from './invoice-workflow.js';
+import {
   AtualizarFuncionarioDto,
   CancelarPedidoDto,
   ClienteDto,
@@ -79,7 +84,13 @@ interface EmployeeApiRow extends RowDataPacket {
 @Controller()
 @UseGuards(AuthGuard, PermissionGuard)
 export class ApiController {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly registerExpense: RegisterExpenseWorkflow,
+    private readonly payExpense: PayExpenseWorkflow,
+    private readonly issueInvoice: IssueInvoiceWorkflow,
+    private readonly retryInvoice: RetryInvoiceWorkflow,
+  ) {}
 
   @Get('clientes')
   listarClientes() {
@@ -935,23 +946,8 @@ export class ApiController {
         [id],
       );
       await addLog(client, id, request, 'Pedido retirado', 'Produto entregue ao cliente.');
-      const [existingInvoice] = (
-        await client.query('SELECT id_nota_fiscal FROM nota_fiscal WHERE pedido_id = $1', [id])
-      ).rows;
-      if (!existingInvoice) {
-        const invoice = await client.query(
-          `INSERT INTO nota_fiscal
-            (pedido_id, serie, data_emissao, chave_acesso, mensagem_erro)
-           VALUES ($1, '1', now(), '', '')`,
-          [id],
-        );
-        await client.query(
-          `UPDATE nota_fiscal
-           SET numero = $1, chave_acesso = $2
-           WHERE id_nota_fiscal = $3`,
-          [invoice.insertId, `1-${invoice.insertId}-${id}`, invoice.insertId],
-        );
-      }
+      // Pedido, pagamento, log e nota compartilham a transação: todos confirmam ou sofrem rollback juntos.
+      await this.issueInvoice.execute({ client, orderId: id });
       return { success: true };
     });
   }
@@ -968,33 +964,15 @@ export class ApiController {
   @Post('despesas')
   @RequirePermission(PERMISSOES.despesasGerenciar)
   async registrarDespesa(@Body() dto: DespesaDto) {
-    const result = await this.db.execute(
-      `INSERT INTO despesa_interna (descricao, valor, data)
-       VALUES ($1, $2, $3)`,
-      [dto.descricao.trim(), dto.valor, dto.data],
-    );
-    const [expense] = await this.db.query(
-      `SELECT id_despesa AS \`idDespesa\`, descricao, valor, data, status
-       FROM despesa_interna WHERE id_despesa = $1`,
-      [result.insertId],
-    );
-    return expense;
+    // O controller traduz HTTP para o workflow, que concentra a sequência de negócio e persistência.
+    return this.registerExpense.execute(dto);
   }
 
   @Post('despesas/:id/pagamento')
   @RequirePermission(PERMISSOES.despesasGerenciar)
   async pagarDespesa(@Param('id', ParseIntPipe) id: number) {
-    const result = await this.db.execute(
-      `UPDATE despesa_interna SET status = 'paga' WHERE id_despesa = $1`,
-      [id],
-    );
-    if (result.affectedRows === 0) throw new NotFoundException('Despesa não encontrada.');
-    const [expense] = await this.db.query(
-      `SELECT id_despesa AS \`idDespesa\`, descricao, valor, data, status
-       FROM despesa_interna WHERE id_despesa = $1`,
-      [id],
-    );
-    return expense;
+    // ParseIntPipe valida a forma numérica do ID antes da execução do workflow.
+    return this.payExpense.execute(id);
   }
 
   @Get('notas-fiscais')
@@ -1011,14 +989,8 @@ export class ApiController {
   @Post('notas-fiscais/:id/reenvio')
   @RequirePermission(PERMISSOES.notasFiscais)
   async reenviarNota(@Param('id', ParseIntPipe) id: number) {
-    const result = await this.db.execute(
-      `UPDATE nota_fiscal SET status = 'em_processamento', mensagem_erro = ''
-       WHERE id_nota_fiscal = $1 AND status = 'com_erro'`,
-      [id],
-    );
-    if (result.affectedRows === 0) {
-      throw new BadRequestException('Só é possível reenviar notas fiscais com erro.');
-    }
+    // O sucesso HTTP só é retornado depois de o workflow confirmar a transição de estado.
+    await this.retryInvoice.execute(id);
     return { success: true };
   }
 }

@@ -20,11 +20,13 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    // O cookie é criado no login/bootstrap; sem ele a rota protegida não tem identidade de sessão.
     const token = request.cookies?.access_token;
     if (!token) throw new UnauthorizedException('Sessão ausente ou expirada.');
 
     let employeeId: number;
     try {
+      // Além da assinatura, verifica validade/expiração e garante que o sujeito seja um ID válido.
       const payload = await this.jwt.verifyAsync<{ sub: number }>(token);
       employeeId = Number(payload.sub);
       if (!Number.isSafeInteger(employeeId) || employeeId < 1) {
@@ -34,6 +36,8 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Sessão ausente ou expirada.');
     }
 
+    // Recarrega o funcionário para aplicar status e cargo atuais em cada requisição,
+    // inclusive alterações feitas depois que o JWT foi emitido.
     const [employee] = await this.db.query<RowDataPacket & {
       idFuncionario: string;
       nome: string;
@@ -55,6 +59,7 @@ export class AuthGuard implements CanActivate {
       nome: employee.nome,
       cargo: employee.cargo,
     } satisfies AuthenticatedUser;
+    // Nest continua para o controller somente após identidade e cargo terem sido validados.
     return true;
   }
 }

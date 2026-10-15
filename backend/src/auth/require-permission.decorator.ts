@@ -3,6 +3,7 @@ import type { Permissao } from './roles.js';
 
 export const REQUIRED_PERMISSION = 'requiredPermission';
 
+/** Anexa a permissão requerida aos metadados da rota para leitura pelo PermissionGuard. */
 export function RequirePermission(permission: Permissao) {
   return SetMetadata(REQUIRED_PERMISSION, permission);
 }

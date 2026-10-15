@@ -14,10 +14,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [apiError, setApiError] = useState("");
     const reportError = useCallback((message: string) => setApiError(message), []);
     const auth = useAuthDomain(reportError);
+    // Os hooks de domínio recebem a sessão e o cargo para decidir quais dados carregar.
     const authenticated = Boolean(auth.usuario);
     const cargo = auth.usuario?.cargo;
     const clientes = useClienteDomain(authenticated, reportError);
     const servicos = useServicoDomain(authenticated, reportError);
+    // O frontend adapta dados e telas ao cargo; a autorização real continua no backend.
     const podeConsultarEstoque = Boolean(cargo && temPermissao(cargo, PERMISSOES.estoqueConsultar));
     const podeGerenciarFuncionarios = Boolean(
         cargo && temPermissao(cargo, PERMISSOES.funcionariosGerenciar)
@@ -25,6 +27,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const podeGerenciarDespesas = Boolean(
         cargo && temPermissao(cargo, PERMISSOES.despesasGerenciar)
     );
+    // Despesas requerem a permissão de gestão; as rotas da API também fazem sua própria verificação.
     const estoque = useEstoqueDomain(podeConsultarEstoque, reportError);
     const financeiro = useFinanceDomain(authenticated, podeGerenciarDespesas, reportError);
     const funcionarios = useFuncionarioDomain(

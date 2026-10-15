@@ -19,8 +19,11 @@ import { CARGOS } from '../auth/roles.js';
 import { IsValidCpfCnpjConstraint } from './document-validator.js';
 
 export class ClienteDto {
+  /** Nome obrigatório do cliente. */
   @IsString() @IsNotEmpty() nome!: string;
+  /** A constraint executa a estratégia de CPF ou CNPJ no ValidationPipe global. */
   @IsString() @IsNotEmpty() @Validate(IsValidCpfCnpjConstraint) cpfCnpj!: string;
+  /** Telefone obrigatório recebido como texto para preservar formatação e zeros iniciais. */
   @IsString() @IsNotEmpty() telefone!: string;
 }
 

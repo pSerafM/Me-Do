@@ -21,6 +21,7 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
             return;
         }
 
+        // Validacao imediata para orientar o usuario; a API repete a verificacao antes de gravar.
         if (!validarCpfCnpj(cpfCnpj)) {
             alert("Informe um CPF ou CNPJ válido.");
             return;
