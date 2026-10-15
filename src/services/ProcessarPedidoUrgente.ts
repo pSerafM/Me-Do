@@ -1,8 +1,9 @@
-import { Pedido } from "../models/Pedido";
-import { ProcessarPedido } from "./ProcessarPedido";
+import type { Pedido } from "../models/Pedido";
+import type { EstrategiaProcessamentoPedido } from "./EstrategiaProcessamentoPedido";
 
-export class ProcessarPedidoUrgente extends ProcessarPedido {
-    protected aplicarRegras(pedido: Pedido): void {
+// O processamento urgente mantém o total base e marca o pedido como urgente.
+export class ProcessarPedidoUrgente implements EstrategiaProcessamentoPedido {
+    aplicar(pedido: Pedido): void {
         pedido.alterarStatus("urgente");
     }
 }

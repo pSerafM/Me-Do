@@ -1,8 +1,2 @@
-import { Pedido } from "../models/Pedido";
-import { ProcessarPedido } from "./ProcessarPedido";
-
-export class ProcessarPedidoComGarantia extends ProcessarPedido {
-    protected aplicarRegras(pedido: Pedido): void {
-        pedido.alterarStatus("garantia");
-    }
-}
+// Mantém o caminho antigo de importação sem duplicar a implementação.
+export { ProcessarPedidoComGarantia } from "./ProcessarPedidoComGarantia";
