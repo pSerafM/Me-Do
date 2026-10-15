@@ -1,3 +1,5 @@
+//Página de controle de estoque. Mostra a lista de insumos, permite buscar, cadastrar e movimentar.
+
 import { useState } from "react";
 import InsumoForm from "../components/InsumoForm";
 import Modal from "../components/Modal";
@@ -5,12 +7,17 @@ import MovimentacaoModal from "../components/MovimentacaoModal";
 import { useApp } from "../hooks/useApp";
 import { moeda } from "../utils/formatadores";
 
+
 function Estoque() {
+
+    //Dados e funcões vindos do AppProvider.
     const { insumos, cadastrarInsumo } = useApp();
     const [busca, setBusca] = useState("");
     const [novoInsumo, setNovoInsumo] = useState(false);
+    //Guarda só o ID do insumo em movimentação
     const [idMovimentando, setIdMovimentando] = useState<number | null>(null);
 
+    //Filtra a lista por nome ou SKU.
     const termo = busca.trim().toLowerCase();
     const lista = insumos.filter(
         (insumo) =>
@@ -41,7 +48,7 @@ function Estoque() {
                     <table className="tabela">
                         <thead>
                             <tr>
-                                <th>Foto</th>
+                                <th>ID</th>
                                 <th>SKU</th>
                                 <th>Nome</th>
                                 <th>Categoria</th>
@@ -59,8 +66,10 @@ function Estoque() {
                                 </tr>
                             )}
                             {lista.map((insumo) => (
+
+                                //Linha destacada quando o saldo está no mínimo ou abaixo.
                                 <tr key={insumo.id} className={insumo.abaixoDoMinimo() ? "alerta-estoque" : ""}>
-                                    <td>📦</td>
+                                    <td>{insumo.id}</td>
                                     <td>{insumo.sku}</td>
                                     <td>{insumo.nome}</td>
                                     <td>{insumo.categoria}</td>

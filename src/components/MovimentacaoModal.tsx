@@ -25,7 +25,7 @@ function MovimentacaoModal({ insumo, onFechar }: { insumo: Insumo; onFechar: () 
     }
 
     return (
-        <Modal titulo="Movimentar Estoque" icone="🚚" onFechar={onFechar}>
+        <Modal titulo="Movimentar Estoque" onFechar={onFechar}>
             <form className="form-coluna" onSubmit={registrar}>
                 <p className="dica">
                     {insumo.nome} — atual: {insumo.quantidade} {insumo.unidade}
