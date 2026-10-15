@@ -4,15 +4,16 @@ import type { Insumo } from "./Insumo";
 //A fonte da verdade continua sendo o banco (via API). O singleton funciona como um espelho em memória dessa lista, sincronizado pelo useEstoqueDomain.
 export class Estoque {
 
-    //Atributo que pertence à classe e guarda a única instância.
+//Atributo que pertence à classe e guarda a única instância.
+// Exemplo didático: instância em memória, compartilhada neste runtime.
     private static instancia: Estoque;
     private insumos: Insumo[] = [];
 
     private constructor() {} //O construtor é privado, fazendo com que ninguém de fora consiga fazer um "new Estoque()".
 
-    //Ponto de acesso global. Se a instância ainda não existe, cria uma nova. Se já existe, devolve a existente.
+
+
     static getInstancia(): Estoque {
-        // Cria o estoque na primeira chamada; depois, devolve sempre a mesma instância.
         if (!Estoque.instancia) {
             Estoque.instancia = new Estoque();
         }
@@ -30,7 +31,6 @@ export class Estoque {
         this.insumos.push(insumo);
     }
 
-    //Procura insumo
     buscarPorId(id: number): Insumo | undefined {
         return this.insumos.find((insumo) => insumo.id === id);
     }
@@ -47,7 +47,6 @@ export class Estoque {
 
     //Devolve cópia da lista para que ninguém de fora acesse o array original.
     listarInsumos(): Insumo[] {
-        // Devolve outra lista para evitar alterações diretas ao array interno.
         return [...this.insumos];
     }
 }

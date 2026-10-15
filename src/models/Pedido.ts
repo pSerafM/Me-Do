@@ -1,9 +1,12 @@
+// O que chamamod também de OS (Ordem de Serviço) e contém: cliente, serviço, item, etapda, datas, laudo, pagamentos e log. 
+
 import { Cliente } from "./Cliente";
 import { Servico } from "./Servico";
 import type { ItemPedido } from "./ItemPedido";
 import type { ItemInsumo } from "./itemInsumo";
 import type { Checkout } from "./Checkout";
 import { RegistroLog } from "./RegistroLog";
+import type { TipoProcessamentoPedido } from "../services/EstrategiaProcessamentoPedido";
 
 // Etapas do quadro Kanban de Ordens de Serviço (mais os estados finais).
 export type EtapaOS =
@@ -15,7 +18,7 @@ export type EtapaOS =
     | "retirado"
     | "cancelado";
 
-export const ROTULO_ETAPA: Record<EtapaOS, string> = {
+export const ROTULO_ETAPA: Record<EtapaOS, string> = { //definição das constantes das etapas do kanban de ordens de serviço 
     aberto: "Em Aberto",
     analise: "Análise/ Orçamento",
     aguardando_insumo: "Aguardando Insumo",
@@ -30,11 +33,12 @@ export class Pedido {
     cliente: Cliente;
     servico: Servico;
     status: string;
+    // Mantém o tipo escolhido separado da etapa do Kanban e do status resultante.
+    tipoProcessamento: TipoProcessamentoPedido = "comum";
     valorTotal: number;
 
-    // --- acrescentados para as telas da documentação ---
     itens: ItemPedido[];
-    etapa: EtapaOS = "aberto";
+    etapa: EtapaOS = "aberto"; //representa o andamento do kanban
     dataAbertura: Date = new Date();
     dataPrevisao: Date;
     dataConclusao: Date | null = null;
@@ -45,6 +49,7 @@ export class Pedido {
     motivoCancelamento: string = "";
     encerrado: boolean = false;
 
+    // Modelo de domínio usado pela interface; a API é a fonte persistente dos pedidos.
     constructor(
         id: number,
         cliente: Cliente,
@@ -62,7 +67,7 @@ export class Pedido {
         );
     }
 
-    // Soma dos itens do atendimento; sem itens, usa o serviço único.
+    // Soma o preço calculado por cada serviço; sem itens, usa o serviço principal.
     calcularTotal(): number {
         if (this.itens.length === 0) {
             return this.servico.calcularValor();
@@ -86,6 +91,7 @@ export class Pedido {
     }
 
     valorPago(): number {
+        // Pagamentos são eventos separados; total pago é a soma de todos eles.
         return this.pagamentos.reduce(
             (total, pagamento) => total + pagamento.valorPago,
             0
@@ -93,6 +99,7 @@ export class Pedido {
     }
 
     saldo(): number {
+        // Evita apresentar saldo negativo quando o total já foi pago.
         return Math.max(this.valorTotal - this.valorPago(), 0);
     }
 

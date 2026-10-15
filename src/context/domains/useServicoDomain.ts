@@ -16,7 +16,9 @@ export function useServicoDomain(
         reportError
     );
     const { items, setItems, refresh } = collection;
-    const cadastrarServico = useCallback(
+    
+    // comentar
+    const cadastrarServico = useCallback( 
         async (servico: Servico): Promise<string | null> => {
             if (
                 items.some(
@@ -45,6 +47,8 @@ export function useServicoDomain(
         },
         [items, setItems]
     );
+
+    //comentar
     const alterarServico = useCallback(
         async (id: number, dados: Partial<DadosServico>): Promise<string | null> => {
             const current = items.find((servico) => servico.id === id);

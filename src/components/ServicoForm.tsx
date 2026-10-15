@@ -3,29 +3,32 @@ import type { FormEvent } from "react";
 import type { Servico } from "../models/Servico";
 import type { DadosServico } from "../context/AppContext";
 
+//Dá para ser reutilizado e tem seus campos controlado pelo useState.
+//Props: inicial?, rotuloBotao, limparAoSalvar?, onSalvar(dados)
 interface ServicoFormProps {
-    inicial?: Servico;
-    rotuloBotao: string;
-    limparAoSalvar?: boolean;
-    // devolve a mensagem de erro, ou null se salvou
+    inicial?: Servico; //pré preenche o formulário (modo edição)
+    rotuloBotao: string; //define o texto do botão
+    limparAoSalvar?: boolean; //esvazia os campos depois de salvar (modo cadastro)
+    // devolve a mensagem de erro, ou null se salvou (sucesso)
     onSalvar: (dados: DadosServico) => string | null | Promise<string | null>;
 }
-
+// o inicial só vale na montagem do componente, e isso funciona porque o modal de edição monta o form do zero a cada abertura
 function ServicoForm({ inicial, rotuloBotao, limparAoSalvar, onSalvar }: ServicoFormProps) {
     const [nome, setNome] = useState(inicial?.nome ?? "");
-    const [valor, setValor] = useState(inicial ? String(inicial.valor) : "");
-    const [horas, setHoras] = useState(inicial ? String(inicial.horasEstimadas) : "");
+    const [valor, setValor] = useState(inicial ? String(inicial.valor) : ""); //inicia como texto e depois vira number no envio
+    const [horas, setHoras] = useState(inicial ? String(inicial.horasEstimadas) : ""); //inicia como texto e depois vira number no envio
     const [descricao, setDescricao] = useState(inicial?.descricao ?? "");
 
     async function salvar(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (!nome.trim() || !valor || !horas) {
+        //validações antes de salvar
+        if (!nome.trim() || !valor || !horas) { // nome, valor e horas são obrigatórios 
             alert("Preencha nome, valor e tempo estimado.");
             return;
         }
 
-        if (Number(valor) < 0 || Number(horas) <= 0) {
+        if (Number(valor) < 0 || Number(horas) <= 0) { //valor e horas não podem ser negativo
             alert("Informe valores válidos.");
             return;
         }

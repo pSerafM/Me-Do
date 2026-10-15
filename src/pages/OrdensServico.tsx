@@ -32,6 +32,7 @@ function OrdensServico() {
     const pedidoTecnica = pedidos.find((p) => p.id === idTecnica);
     const pedidoLog = pedidos.find((p) => p.id === idLog);
 
+    // Os botões do Kanban chamam o domínio; só atualizam a tela após confirmação da API.
     async function mover(idPedido: number, direcao: 1 | -1) {
         const erro = await moverEtapa(idPedido, direcao);
 
@@ -40,6 +41,7 @@ function OrdensServico() {
         }
     }
 
+    // Coleta o motivo antes de solicitar o cancelamento persistente.
     async function cancelar(idPedido: number) {
         const motivo = motivoCancelamento.trim();
         if (!motivo) {

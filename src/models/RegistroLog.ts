@@ -1,4 +1,4 @@
-// Linha do "Modal de Log de Alterações no Atendimento do Pedido".
+// Evento imutável do histórico da OS: data, funcionário responsável, título e descrição.
 export class RegistroLog {
     data: Date;
     funcionario: string;

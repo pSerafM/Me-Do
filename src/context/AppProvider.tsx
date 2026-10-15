@@ -32,6 +32,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         auth.usuario?.cargo === "Dono",
         reportError
     );
+    // O domínio de pedidos também atualiza estoque e notas quando suas operações alteram esses dados.
     const pedidos = usePedidoDomain(
         authenticated,
         reportError,
@@ -59,6 +60,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 alterarServico: servicos.alterarServico,
                 cadastrarInsumo: estoque.cadastrarInsumo,
                 movimentarEstoque: estoque.movimentarEstoque,
+                // Expõe as operações do domínio pelo contexto global consumido por hooks das telas.
                 criarPedido: pedidos.criarPedido,
                 moverEtapa: pedidos.moverEtapa,
                 salvarDescricaoTecnica: pedidos.salvarDescricaoTecnica,
