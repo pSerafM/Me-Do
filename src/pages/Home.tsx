@@ -1,16 +1,17 @@
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../hooks/useApp";
 import type { EtapaOS } from "../models/Pedido";
+import { PERMISSOES, temPermissao } from "../auth/permissions";
 
 const ATALHOS = [
-    { icone: "▥", rotulo: "Iniciar Atendimento", para: "/app/atendimento" },
-    { icone: "🔧", rotulo: "Ordens de Serviço", para: "/app/ordens-servico" },
-    { icone: "$", rotulo: "Financeiro e Estoque", para: "/app/financeiro" },
-    { icone: "📊", rotulo: "Dashboards e Gestão", para: "/app/gestao" }
+    { icone: "▥", rotulo: "Iniciar Atendimento", para: "/app/atendimento", permissao: PERMISSOES.pedidosCriar },
+    { icone: "🔧", rotulo: "Ordens de Serviço", para: "/app/ordens-servico", permissao: PERMISSOES.pedidosConsultar },
+    { icone: "$", rotulo: "Financeiro e Estoque", para: "/app/financeiro", permissao: PERMISSOES.checkout },
+    { icone: "📊", rotulo: "Dashboards e Gestão", para: "/app/gestao", permissao: PERMISSOES.funcionariosGerenciar }
 ];
 
 function Home() {
-    const { pedidos } = useApp();
+    const { pedidos, usuario } = useApp();
     const navigate = useNavigate();
 
     const contar = (...etapas: EtapaOS[]) =>
@@ -38,7 +39,9 @@ function Home() {
             </section>
 
             <section className="atalhos">
-                {ATALHOS.map((atalho) => (
+                {usuario && ATALHOS.filter((atalho) =>
+                    temPermissao(usuario.cargo, atalho.permissao)
+                ).map((atalho) => (
                     <button
                         key={atalho.para}
                         type="button"
@@ -46,7 +49,12 @@ function Home() {
                         onClick={() => navigate(atalho.para)}
                     >
                         <span className="atalho-icone">{atalho.icone}</span>
-                        {atalho.rotulo}
+                        {atalho.para === "/app/financeiro" &&
+                        temPermissao(usuario!.cargo, PERMISSOES.estoqueGerenciar)
+                            ? "Financeiro e Estoque"
+                            : atalho.para === "/app/gestao" && usuario.cargo !== "Dono"
+                              ? "Gestão de Funcionários"
+                              : atalho.rotulo}
                     </button>
                 ))}
             </section>

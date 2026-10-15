@@ -7,9 +7,11 @@ export function useCollection<TApi, TModel>(
     revive: (value: TApi) => TModel,
     reportError: (message: string) => void
 ) {
+    // Mantém os dados do domínio no React e fornece uma função comum para recarregá-los da API.
     const [storedItems, setItems] = useState<TModel[]>([]);
 
     const refresh = useCallback(async () => {
+        // A resposta HTTP é convertida em modelos do frontend antes de atualizar a coleção.
         const rows = await apiRequest<TApi[]>(path);
         const models = rows.map(revive);
         setItems(models);

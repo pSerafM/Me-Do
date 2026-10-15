@@ -1,8 +1,11 @@
 import { useCallback } from "react";
 import { apiBody, apiErrorMessage, apiRequest } from "../../api/client";
 import { reviverPedido, type ApiPedido } from "../../api/modelsFromApi";
-import type { FormaPagamento, InsumoUsado, Progresso } from "../AppContext";
+import type { FormaPagamento, InsumoUsado, OrcamentoServico, Progresso } from "../AppContext";
 import type { Pedido } from "../../models/Pedido";
+import type { TipoProcessamentoPedido } from "../../services/EstrategiaProcessamentoPedido";
+import { ProcessarPedido } from "../../services/ProcessarPedido";
+import { criarEstrategiaProcessamento } from "../../services/criarEstrategiaProcessamento";
 import { useCollection } from "./useCollection";
 
 const ROTULOS_ETAPA: Record<string, string> = {
@@ -19,6 +22,7 @@ export function usePedidoDomain(
     refreshInsumos: () => Promise<unknown>,
     refreshNotas: () => Promise<unknown>
 ) {
+    // useCollection carrega GET /pedidos ao autenticar e converte cada resposta em um modelo Pedido.
     const collection = useCollection<ApiPedido, Pedido>(
         "/pedidos",
         authenticated,
@@ -27,8 +31,11 @@ export function usePedidoDomain(
     );
     const { items, refresh } = collection;
 
+    // Criação: envia somente IDs e dados de cada item; o servidor calcula valores e grava as relações.
     const criarPedido = useCallback(
-        async (pedido: Pedido): Promise<Pedido> => {
+        async (pedido: Pedido, tipoProcessamento: TipoProcessamentoPedido): Promise<Pedido> => {
+            // Executa a Strategy no domínio para que regra e status estejam presentes no modelo.
+            new ProcessarPedido(criarEstrategiaProcessamento(tipoProcessamento)).processar(pedido);
             const row = await apiRequest<{ id: number }>("/pedidos", {
                 method: "POST",
                 body: apiBody({
@@ -41,10 +48,16 @@ export function usePedidoDomain(
                         numeroSerie: item.numeroSerie,
                         estado: item.estado,
                         observacao: item.observacao,
-                        foto: item.foto
-                    }))
+                        foto: item.foto,
+                        // O backend usa esse tipo para calcular e gravar o preço oficial.
+                        tipoCobranca: item.servico.tipoCobranca()
+                    })),
+                    tipoProcessamento,
+                    // Compatibilidade para pedidos sem itens detalhados: informa a regra do serviço principal.
+                    tipoCobranca: pedido.servico.tipoCobranca()
                 })
             });
+            // A API devolve o ID; recarregar obtém o pedido completo com logs, pagamentos e dados relacionados.
             const pedidos = await refresh();
             const created = pedidos.find((item) => item.id === row.id);
             if (!created) throw new Error("Pedido salvo, mas não retornou na atualização.");
@@ -57,6 +70,7 @@ export function usePedidoDomain(
         async (id: number, direcao: 1 | -1): Promise<string | null> => {
             const pedido = items.find((item) => item.id === id);
             if (!pedido) return "Pedido não encontrado.";
+            // Validação antecipada dá retorno rápido; a API repete as regras antes de gravar.
             const stages = Object.keys(ROTULOS_ETAPA);
             const position = stages.indexOf(pedido.etapa);
             const next = stages[position + direcao];
@@ -83,13 +97,21 @@ export function usePedidoDomain(
             id: number,
             laudo: string,
             novosInsumos: InsumoUsado[],
-            progresso: Progresso | null
+            progresso: Progresso | null,
+            orcamentos: OrcamentoServico[]
         ): Promise<string | null> => {
             if (!laudo.trim()) return "Preencha o laudo técnico / parecer.";
             try {
+                // Laudo, progresso e novos insumos são enviados juntos para a API processar atomicamente.
+                // Orçamentos são parte da mesma requisição para o servidor validar o total contra pagamentos.
                 await apiRequest(`/pedidos/${id}/laudo`, {
                     method: "POST",
-                    body: apiBody({ laudo: laudo.trim(), insumos: novosInsumos, progresso })
+                    body: apiBody({
+                        laudo: laudo.trim(),
+                        insumos: novosInsumos,
+                        progresso,
+                        orcamentos
+                    })
                 });
                 await Promise.all([refresh(), refreshInsumos()]);
                 return null;
@@ -104,6 +126,7 @@ export function usePedidoDomain(
         async (id: number, motivo: string): Promise<string | null> => {
             if (!motivo.trim()) return "Informe o motivo do cancelamento.";
             try {
+                // O motivo é persistido junto à etapa cancelada e ao registro de log.
                 await apiRequest(`/pedidos/${id}/cancelamento`, {
                     method: "POST",
                     body: apiBody({ motivo })
@@ -120,6 +143,7 @@ export function usePedidoDomain(
     const registrarPagamento = useCallback(
         async (id: number, valor: number, forma: FormaPagamento): Promise<string | null> => {
             try {
+                // Cada entrada é registrada como pagamento próprio; a API verifica o saldo restante.
                 await apiRequest(`/pedidos/${id}/pagamentos`, {
                     method: "POST",
                     body: apiBody({ valor, forma })
@@ -136,6 +160,7 @@ export function usePedidoDomain(
     const finalizarPedido = useCallback(
         async (id: number, forma?: FormaPagamento): Promise<string | null> => {
             try {
+                // Finalização pode registrar o saldo final, encerrar o pedido e criar a nota fiscal.
                 await apiRequest(`/pedidos/${id}/finalizacao`, {
                     method: "POST",
                     body: apiBody({ ...(forma ? { forma } : {}) })

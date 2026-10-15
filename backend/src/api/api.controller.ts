@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -16,7 +17,12 @@ import { hash } from 'bcryptjs';
 import type { RowDataPacket } from 'mysql2/promise';
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
+import { PermissionGuard } from '../auth/permission.guard.js';
+import { RequirePermission } from '../auth/require-permission.decorator.js';
+import { PERMISSOES, temPermissao } from '../auth/roles.js';
+import type { Cargo } from '../auth/roles.js';
 import { DatabaseService, type SqlValue } from '../database/database.service.js';
+import { calcularValorCobranca, statusDoProcessamento } from './order-strategies.js';
 import {
   AtualizarFuncionarioDto,
   CancelarPedidoDto,
@@ -52,8 +58,26 @@ interface InventoryRow extends RowDataPacket {
   quantidadeMinima: string;
 }
 
+interface EmployeeApiRow extends RowDataPacket {
+  idFuncionario: number;
+  nome: string;
+  cpf: string;
+  telefone: string;
+  email: string;
+  genero: string;
+  dataDeNascimento: Date | string | null;
+  cep: string;
+  rua: string;
+  cidade: string;
+  estado: string;
+  complemento: string;
+  status: string;
+  numero: number;
+  cargo: Cargo;
+}
+
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PermissionGuard)
 export class ApiController {
   constructor(private readonly db: DatabaseService) {}
 
@@ -96,6 +120,7 @@ export class ApiController {
   }
 
   @Post('servicos')
+  @RequirePermission(PERMISSOES.servicosGerenciar)
   async cadastrarServico(@Body() dto: ServicoDto) {
     try {
       const result = await this.db.execute(
@@ -119,6 +144,7 @@ export class ApiController {
   }
 
   @Patch('servicos/:id')
+  @RequirePermission(PERMISSOES.servicosGerenciar)
   async atualizarServico(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: Partial<ServicoDto>,
@@ -161,6 +187,7 @@ export class ApiController {
   }
 
   @Get('estoque')
+  @RequirePermission(PERMISSOES.estoqueConsultar)
   listarEstoque() {
     return this.db.query(
       `SELECT id, nome, quantidade, unidade, sku, categoria,
@@ -171,6 +198,7 @@ export class ApiController {
   }
 
   @Post('estoque')
+  @RequirePermission(PERMISSOES.estoqueGerenciar)
   async cadastrarInsumo(@Body() dto: EstoqueDto) {
     const sku = dto.sku?.trim() || null;
     try {
@@ -205,6 +233,7 @@ export class ApiController {
   }
 
   @Post('estoque/:id/movimentacoes')
+  @RequirePermission(PERMISSOES.estoqueGerenciar)
   async movimentarEstoque(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: MovimentacaoDto,
@@ -245,24 +274,32 @@ export class ApiController {
   }
 
   @Get('funcionarios')
+  @RequirePermission(PERMISSOES.funcionariosGerenciar)
   listarFuncionarios() {
     return this.db.query(
       `SELECT id_funcionario AS \`idFuncionario\`, nome, cpf, telefone, email, genero,
               data_de_nascimento AS \`dataDeNascimento\`, cep, rua, cidade, estado,
-              complemento, status, numero
+              complemento, status, numero, cargo
        FROM funcionario ORDER BY nome`,
     );
   }
 
   @Post('funcionarios')
-  async cadastrarFuncionario(@Body() dto: FuncionarioDto) {
+  @RequirePermission(PERMISSOES.funcionariosGerenciar)
+  async cadastrarFuncionario(
+    @Body() dto: FuncionarioDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    if (dto.cargo !== undefined && !temPermissao(request.user.cargo, PERMISSOES.cargosAtribuir)) {
+      throw new ForbiddenException('Somente o dono pode atribuir cargos.');
+    }
     const senhaHash = await hash(dto.senha, 12);
     try {
       const result = await this.db.execute(
         `INSERT INTO funcionario
-           (nome, cpf, telefone, email, senha_hash, genero, data_de_nascimento,
+           (nome, cpf, telefone, email, senha_hash, cargo, genero, data_de_nascimento,
             cep, rua, cidade, estado, complemento, numero)
-         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          `,
         [
           dto.nome.trim(),
@@ -270,6 +307,7 @@ export class ApiController {
           dto.telefone ?? '',
           dto.email.trim(),
           senhaHash,
+          dto.cargo ?? 'Atendente',
           dto.genero ?? '',
           dto.dataDeNascimento || null,
           dto.cep ?? '',
@@ -280,13 +318,14 @@ export class ApiController {
           dto.numero ?? 0,
         ],
       );
-      const [employee] = await this.db.query(
+      const [employee] = await this.db.query<EmployeeApiRow>(
         `SELECT id_funcionario AS \`idFuncionario\`, nome, cpf, telefone, email, genero,
                 data_de_nascimento AS \`dataDeNascimento\`, cep, rua, cidade, estado,
-                complemento, status, numero
+                complemento, status, numero, cargo
          FROM funcionario WHERE id_funcionario = $1`,
         [result.insertId],
       );
+      if (!employee) throw new NotFoundException('Não foi possível recuperar o funcionário criado.');
       return employee;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -300,7 +339,36 @@ export class ApiController {
   async atualizarFuncionario(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AtualizarFuncionarioDto,
+    @Req() request: AuthenticatedRequest,
   ) {
+    if (
+      id !== request.user.idFuncionario &&
+      !temPermissao(request.user.cargo, PERMISSOES.funcionariosGerenciar)
+    ) {
+      throw new ForbiddenException('Seu cargo não permite gerenciar funcionários.');
+    }
+    if (dto.cargo !== undefined && !temPermissao(request.user.cargo, PERMISSOES.cargosAtribuir)) {
+      throw new ForbiddenException('Somente o dono pode atribuir cargos.');
+    }
+    if (dto.cargo !== undefined && dto.cargo !== 'Dono') {
+      const [target] = await this.db.query<RowDataPacket & { cargo: string }>(
+        `SELECT cargo FROM funcionario
+         WHERE id_funcionario = $1 AND status = 'ativo'`,
+        [id],
+      );
+      if (target?.cargo === 'Dono') {
+        const [otherOwner] = await this.db.query<RowDataPacket & { id: number }>(
+          `SELECT id_funcionario AS id FROM funcionario
+           WHERE cargo = 'Dono' AND status = 'ativo' AND id_funcionario <> $1
+           LIMIT 1`,
+          [id],
+        );
+        if (!otherOwner) {
+          throw new BadRequestException('Não é possível remover o cargo do último dono ativo.');
+        }
+      }
+    }
+
     const senhaHash = dto.senha ? await hash(dto.senha, 12) : undefined;
     const columns: Record<string, string> = {
       nome: 'nome',
@@ -315,6 +383,7 @@ export class ApiController {
       estado: 'estado',
       complemento: 'complemento',
       numero: 'numero',
+      cargo: 'cargo',
     };
     const values: SqlValue[] = [];
     const sets = Object.entries(dto).flatMap(([key, value]) => {
@@ -337,14 +406,24 @@ export class ApiController {
          `,
         values,
       );
-      const [employee] = await this.db.query(
+      const [employee] = await this.db.query<EmployeeApiRow>(
         `SELECT id_funcionario AS \`idFuncionario\`, nome, cpf, telefone, email, genero,
                 data_de_nascimento AS \`dataDeNascimento\`, cep, rua, cidade, estado,
-                complemento, status, numero
+                complemento, status, numero, cargo
          FROM funcionario WHERE id_funcionario = $1`,
         [id],
       );
       if (!employee) throw new NotFoundException('Funcionário não encontrado.');
+      if (id === request.user.idFuncionario) {
+        return {
+          user: {
+            idFuncionario: Number(employee.idFuncionario),
+            nome: employee.nome,
+            email: employee.email,
+            cargo: employee.cargo,
+          },
+        };
+      }
       return employee;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -355,12 +434,29 @@ export class ApiController {
   }
 
   @Post('funcionarios/:id/inativar')
+  @RequirePermission(PERMISSOES.funcionariosGerenciar)
   async excluirFuncionario(
     @Param('id', ParseIntPipe) id: number,
     @Req() request: AuthenticatedRequest,
   ) {
     if (id === request.user.idFuncionario) {
       throw new BadRequestException('Não é possível inativar o próprio funcionário.');
+    }
+    const [employee] = await this.db.query<RowDataPacket & { cargo: string }>(
+      `SELECT cargo FROM funcionario WHERE id_funcionario = $1 AND status = 'ativo'`,
+      [id],
+    );
+    if (!employee) throw new NotFoundException('Funcionário não encontrado ou já inativo.');
+    if (employee.cargo === 'Dono') {
+      const [otherOwner] = await this.db.query<RowDataPacket & { id: number }>(
+        `SELECT id_funcionario AS id FROM funcionario
+         WHERE cargo = 'Dono' AND status = 'ativo' AND id_funcionario <> $1
+         LIMIT 1`,
+        [id],
+      );
+      if (!otherOwner) {
+        throw new BadRequestException('Não é possível inativar o último dono ativo.');
+      }
     }
     const result = await this.db.execute(
       `UPDATE funcionario SET status = 'inativo'
@@ -372,7 +468,10 @@ export class ApiController {
   }
 
   @Get('pedidos')
-  listarPedidos() {
+  @RequirePermission(PERMISSOES.pedidosConsultar)
+  listarPedidos(@Req() request: AuthenticatedRequest) {
+    // Reúne a OS e suas relações em uma resposta para o Kanban, checkout e histórico.
+    // A estratégia e o orçamento por linha são incluídos para o frontend reconstituir o cálculo.
     return this.db.query(
       `SELECT
          p.id,
@@ -381,7 +480,8 @@ export class ApiController {
          JSON_OBJECT('id', s.id, 'nome', s.nome, 'valor', s.valor,
                      'horasEstimadas', s.horas_estimadas,
                      'descricao', s.descricao, 'status', s.status) AS servico,
-         p.status, p.valor_total AS \`valorTotal\`, p.etapa,
+         p.status, p.tipo_processamento AS \`tipoProcessamento\`,
+         p.valor_total AS \`valorTotal\`, p.etapa,
          p.data_abertura AS \`dataAbertura\`, p.data_previsao AS \`dataPrevisao\`,
          p.data_conclusao AS \`dataConclusao\`, p.laudo_tecnico AS \`laudoTecnico\`,
          p.motivo_cancelamento AS \`motivoCancelamento\`, p.encerrado,
@@ -389,7 +489,9 @@ export class ApiController {
            SELECT JSON_ARRAYAGG(JSON_OBJECT(
              'servico', JSON_OBJECT('id', iserv.id, 'nome', iserv.nome,
                'valor', iserv.valor, 'horasEstimadas', iserv.horas_estimadas,
-               'descricao', iserv.descricao, 'status', iserv.status),
+               'descricao', iserv.descricao, 'status', iserv.status,
+               'tipoCobranca', psi.tipo_cobranca, 'valorOrcado', psi.valor_orcado),
+             'idPedidoServico', psi.id,
              'modelo', pi.modelo, 'marca', pi.marca, 'numeroSerie', pi.numero_serie,
              'estado', pi.estado, 'observacao', pi.observacao, 'foto', pi.foto
            ))
@@ -414,22 +516,25 @@ export class ApiController {
            ))
            FROM checkout co WHERE co.pedido_id = p.id
          ), JSON_ARRAY()) AS pagamentos,
-         COALESCE((
+         CASE WHEN $1 IN ('Prestador', 'Gestor', 'Dono') THEN COALESCE((
            SELECT JSON_ARRAYAGG(JSON_OBJECT(
              'data', l.data, 'funcionario', l.funcionario_nome,
              'titulo', l.titulo, 'descricao', l.descricao
            ))
            FROM \`log\` l WHERE l.pedido_id = p.id
-         ), JSON_ARRAY()) AS log
+         ), JSON_ARRAY()) ELSE JSON_ARRAY() END AS log
        FROM pedido p
        JOIN cliente c ON c.id = p.cliente_id
        JOIN servico s ON s.id = p.servico_id
        ORDER BY p.data_abertura DESC, p.id DESC`,
+       [request.user.cargo],
     );
   }
 
   @Post('pedidos')
+  @RequirePermission(PERMISSOES.pedidosCriar)
   async criarPedido(@Body() dto: CriarPedidoDto, @Req() request: AuthenticatedRequest) {
+    // Uma transação garante que pedido, serviços, itens e log sejam gravados juntos ou revertidos juntos.
     return this.db.transaction(async (client) => {
       const serviceIds = dto.itens.length ? dto.itens.map((item) => item.servicoId) : [dto.servicoId];
       const serviceRows = await client.query<RowDataPacket & {
@@ -446,10 +551,28 @@ export class ApiController {
         throw new BadRequestException('Um ou mais serviços não foram encontrados ou estão inativos.');
       }
       const services = new Map(serviceRows.rows.map((row) => [Number(row.id), row]));
-      const total = serviceIds.reduce(
-        (sum, id) => sum + Number(services.get(id)?.valor ?? 0),
-        0,
-      );
+      // Calcula cada linha separadamente: duas linhas da mesma ordem podem usar regras diferentes.
+      const lines = serviceIds.map((id, index) => {
+        const service = services.get(id);
+        if (!service) throw new BadRequestException('Serviço não encontrado.');
+        const type = dto.itens[index]?.tipoCobranca ??
+          (index === 0 ? dto.tipoCobranca : undefined) ??
+          'preco_fixo';
+        return {
+          serviceId: id,
+          service,
+          type,
+          value: calcularValorCobranca(
+            {
+              valor: Number(service.valor),
+              horasEstimadas: Number(service.horasEstimadas),
+            },
+            type,
+          ),
+        };
+      });
+      // O valor total persistido é calculado no servidor usando os preços do banco.
+      const total = lines.reduce((sum, line) => sum + line.value, 0);
       const hours = serviceIds.reduce(
         (sum, id) => sum + Number(services.get(id)?.horasEstimadas ?? 0),
         0,
@@ -461,27 +584,29 @@ export class ApiController {
       ).rows;
       if (!customer) throw new NotFoundException('Cliente não encontrado.');
       const orderResult = await client.query(
-          `INSERT INTO pedido
-             (cliente_id, servico_id, valor_total, data_previsao, laudo_tecnico, motivo_cancelamento)
-           VALUES ($1, $2, $3, $4, '', '')`,
-          [
-            dto.clienteId,
-            serviceIds[0],
-            total,
-            new Date(Date.now() + hours * 3_600_000),
-          ],
-        );
+        `INSERT INTO pedido
+           (cliente_id, servico_id, status, tipo_processamento, valor_total, data_previsao, laudo_tecnico, motivo_cancelamento)
+         VALUES ($1, $2, $3, $4, $5, $6, '', '')`,
+        [
+          dto.clienteId,
+          serviceIds[0],
+          statusDoProcessamento(dto.tipoProcessamento ?? 'comum'),
+          dto.tipoProcessamento ?? 'comum',
+          total,
+          new Date(Date.now() + hours * 3_600_000),
+        ],
+      );
       const orderId = orderResult.insertId;
-      for (let index = 0; index < serviceIds.length; index++) {
-        const serviceId = serviceIds[index];
-        const service = services.get(serviceId);
-        if (!service) throw new BadRequestException('Serviço não encontrado.');
+      // Salva o tipo e o preço calculado em cada relação para manter o histórico da OS.
+      for (let index = 0; index < lines.length; index++) {
+        const { serviceId, type, value } = lines[index];
         const item = dto.itens[index];
         const serviceOrder = await client.query(
-            `INSERT INTO pedido_servico (pedido_id, servico_id, valor_cobrado)
-             VALUES ($1, $2, $3)`,
-            [orderId, serviceId, service.valor],
-          );
+          `INSERT INTO pedido_servico
+             (pedido_id, servico_id, tipo_cobranca, valor_orcado, valor_cobrado)
+           VALUES ($1, $2, $3, NULL, $4)`,
+          [orderId, serviceId, type, value],
+        );
         if (item) {
           await client.query(
             `INSERT INTO pedido_item
@@ -511,11 +636,13 @@ export class ApiController {
   }
 
   @Patch('pedidos/:id/etapa')
+  @RequirePermission(PERMISSOES.pedidosOperar)
   async moverEtapa(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: MoverEtapaDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Trava a linha do pedido para validar e avançar a etapa sem conflito com outra operação.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { etapa: string; laudoTecnico: string }>(
@@ -538,16 +665,94 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/laudo')
+  @RequirePermission(PERMISSOES.pedidosOperar)
   async salvarLaudo(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: SalvarLaudoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Laudo, baixa de estoque, consumo de insumos e histórico formam uma única operação atômica.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { etapa: string }>('SELECT etapa FROM pedido WHERE id = $1 FOR UPDATE', [id])
       ).rows;
       if (!order) throw new NotFoundException('Pedido não encontrado.');
+
+      if (dto.orcamentos?.length) {
+        // Impede valores repetidos para a mesma linha dentro de uma única atualização.
+        const uniqueIds = new Set(dto.orcamentos.map((quote) => quote.idPedidoServico));
+        if (uniqueIds.size !== dto.orcamentos.length) {
+          throw new BadRequestException('O mesmo serviço não pode receber mais de um orçamento.');
+        }
+        const lines = (
+          await client.query<
+            RowDataPacket & {
+              id: string;
+              tipoCobranca: 'preco_fixo' | 'hora_tecnica' | 'orcamento';
+              valorOrcado: string | null;
+              valorCobrado: string;
+              valorServico: string;
+              horasEstimadas: string;
+            }
+          >(
+            `SELECT psi.id, psi.tipo_cobranca AS \`tipoCobranca\`,
+                    psi.valor_orcado AS \`valorOrcado\`,
+                    psi.valor_cobrado AS \`valorCobrado\`,
+                    s.valor AS \`valorServico\`,
+                    s.horas_estimadas AS \`horasEstimadas\`
+             FROM pedido_servico psi
+             JOIN servico s ON s.id = psi.servico_id
+             WHERE psi.pedido_id = $1
+             FOR UPDATE`,
+            [id],
+          )
+        ).rows;
+        // Cria uma busca rápida e confirma que cada linha realmente pertence a este pedido.
+        const lineById = new Map(lines.map((line) => [Number(line.id), line]));
+        const quotedLines = dto.orcamentos.map((quote) => {
+          const line = lineById.get(quote.idPedidoServico);
+          if (!line) throw new BadRequestException('O serviço orçado não pertence a este pedido.');
+          if (line.tipoCobranca !== 'orcamento') {
+            throw new BadRequestException('Só é possível informar orçamento para serviços configurados nessa modalidade.');
+          }
+          const value = calcularValorCobranca(
+            { valor: Number(line.valorServico), horasEstimadas: Number(line.horasEstimadas) },
+            'orcamento',
+            quote.valor,
+          );
+          return { id: quote.idPedidoServico, valorOrcado: quote.valor, value };
+        });
+        const quotedById = new Map(quotedLines.map((line) => [line.id, line]));
+        // Recalcula o total com os novos orçamentos e mantém os valores atuais das demais linhas.
+        const newTotal = Math.round(
+          (lines.reduce(
+            (sum, line) =>
+              sum + (quotedById.get(Number(line.id))?.value ?? Number(line.valorCobrado)),
+            0,
+          ) +
+            Number.EPSILON) *
+            100,
+        ) / 100;
+        const [{ totalPago }] = (
+          await client.query<RowDataPacket & { totalPago: string }>(
+            `SELECT COALESCE(SUM(valor_pago), 0) AS \`totalPago\`
+             FROM checkout WHERE pedido_id = $1`,
+            [id],
+          )
+        ).rows;
+        // Não permite que uma revisão do orçamento deixe o cliente com crédito excedente.
+        if (newTotal + 0.001 < Number(totalPago)) {
+          throw new BadRequestException('O total do pedido não pode ficar abaixo do valor já pago.');
+        }
+        // A linha, o total da ordem e o pagamento são protegidos na mesma transação.
+        for (const line of quotedLines) {
+          await client.query(
+            `UPDATE pedido_servico SET valor_orcado = $1, valor_cobrado = $2 WHERE id = $3`,
+            [line.valorOrcado, line.value, line.id],
+          );
+        }
+        await client.query('UPDATE pedido SET valor_total = $1 WHERE id = $2', [newTotal, id]);
+      }
 
       for (const used of dto.insumos) {
         const [stock] = (
@@ -603,11 +808,13 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/cancelamento')
+  @RequirePermission(PERMISSOES.pedidosCancelar)
   async cancelarPedido(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CancelarPedidoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Atualiza a etapa/motivo e registra o evento no log dentro da mesma transação.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { etapa: string }>('SELECT etapa FROM pedido WHERE id = $1 FOR UPDATE', [id])
@@ -626,11 +833,13 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/pagamentos')
+  @RequirePermission(PERMISSOES.checkout)
   async registrarPagamento(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: PagamentoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Confere saldo com a linha bloqueada antes de criar o lançamento do checkout.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { valorTotal: string; etapa: string }>(
@@ -671,11 +880,13 @@ export class ApiController {
   }
 
   @Post('pedidos/:id/finalizacao')
+  @RequirePermission(PERMISSOES.checkout)
   async finalizarPedido(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: FinalizarPedidoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Recebe eventual saldo, marca retirada/encerramento, grava log e cria nota fiscal atomicamente.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { valorTotal: string; etapa: string; status: string }>(
@@ -746,6 +957,7 @@ export class ApiController {
   }
 
   @Get('despesas')
+  @RequirePermission(PERMISSOES.despesasGerenciar)
   listarDespesas() {
     return this.db.query(
       `SELECT id_despesa AS \`idDespesa\`, descricao, valor,
@@ -754,6 +966,7 @@ export class ApiController {
   }
 
   @Post('despesas')
+  @RequirePermission(PERMISSOES.despesasGerenciar)
   async registrarDespesa(@Body() dto: DespesaDto) {
     const result = await this.db.execute(
       `INSERT INTO despesa_interna (descricao, valor, data)
@@ -769,6 +982,7 @@ export class ApiController {
   }
 
   @Post('despesas/:id/pagamento')
+  @RequirePermission(PERMISSOES.despesasGerenciar)
   async pagarDespesa(@Param('id', ParseIntPipe) id: number) {
     const result = await this.db.execute(
       `UPDATE despesa_interna SET status = 'paga' WHERE id_despesa = $1`,
@@ -784,6 +998,7 @@ export class ApiController {
   }
 
   @Get('notas-fiscais')
+  @RequirePermission(PERMISSOES.notasFiscais)
   listarNotas() {
     return this.db.query(
       `SELECT id_nota_fiscal AS \`idNotaFiscal\`, pedido_id AS \`idPedido\`,
@@ -794,6 +1009,7 @@ export class ApiController {
   }
 
   @Post('notas-fiscais/:id/reenvio')
+  @RequirePermission(PERMISSOES.notasFiscais)
   async reenviarNota(@Param('id', ParseIntPipe) id: number) {
     const result = await this.db.execute(
       `UPDATE nota_fiscal SET status = 'em_processamento', mensagem_erro = ''
@@ -814,6 +1030,7 @@ async function addLog(
   title: string,
   description: string,
 ): Promise<void> {
+  // Centraliza o formato do histórico; chamadas dentro da transação acompanham a operação principal.
   await client.query(
     `INSERT INTO \`log\` (pedido_id, funcionario_id, funcionario_nome, titulo, descricao)
      VALUES ($1, $2, $3, $4, $5)`,

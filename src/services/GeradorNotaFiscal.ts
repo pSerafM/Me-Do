@@ -1,9 +1,11 @@
+// Exemplo didático: este contador em memória não define a numeração persistida das notas.
 export class GeradorNotaFiscal {
     // Singleton: mantém uma única instância do gerador de nota fiscal.
     private static instancia: GeradorNotaFiscal;
 
     // Contador mantido em memória para gerar números sequenciais de nota fiscal.
     private proximoNumero: number = 1;
+
 
     private constructor() {}
 

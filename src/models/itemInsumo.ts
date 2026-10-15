@@ -1,4 +1,5 @@
 export class ItemInsumo {
+    // Representa quanto de um insumo do estoque foi consumido por uma OS.
     idItemInsumo: number;
     idPedido: number;
     idInsumo: number;
@@ -24,6 +25,7 @@ export class ItemInsumo {
     }
 
     calcularValorTotal(): number {
+        // Guarda o custo histórico do material usando a quantidade registrada no pedido.
         return this.quantidadeUsada * this.valorUnitario;
     }
 

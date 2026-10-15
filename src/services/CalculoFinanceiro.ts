@@ -117,11 +117,12 @@ export function servicosMaisContratados(
     return fatias;
 }
 
-// Variação percentual em relação ao mês anterior (null quando não há base).
+// Compara um indicador atual com o anterior; null sinaliza que falta base para comparar.
 export function variacao(atual: number, anterior: number): number | null {
     if (anterior <= 0) {
         return null;
     }
 
+    // Calcula a diferença relativa à base anterior e retorna o percentual.
     return ((atual - anterior) / anterior) * 100;
 }

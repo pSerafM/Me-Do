@@ -1,5 +1,6 @@
 import type { Insumo } from "./Insumo";
 
+// Exemplo didático: instância em memória, compartilhada neste runtime.
 export class Estoque {
     private static instancia: Estoque;
     private readonly insumos: Insumo[] = [];

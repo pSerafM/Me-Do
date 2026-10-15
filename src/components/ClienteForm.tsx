@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Cliente } from "../models/Cliente";
 import { somenteDigitos } from "../utils/formatadores";
+import { validarCpfCnpj } from "../services/EstrategiaDocumento";
 
 interface ClienteFormProps {
     onClienteCadastrado: (cliente: Cliente) => Promise<string | null>;
@@ -20,10 +21,8 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
             return;
         }
 
-        const digitosDoc = somenteDigitos(cpfCnpj).length;
-
-        if (digitosDoc !== 11 && digitosDoc !== 14) {
-            alert("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.");
+        if (!validarCpfCnpj(cpfCnpj)) {
+            alert("Informe um CPF ou CNPJ válido.");
             return;
         }
 
@@ -58,7 +57,7 @@ function ClienteForm({ onClienteCadastrado }: ClienteFormProps) {
             </div>
 
             <div className="campo">
-                <label htmlFor="cpfCnpj">CPF:</label>
+                <label htmlFor="cpfCnpj">CPF/CNPJ:</label>
                 <input
                     id="cpfCnpj"
                     type="text"

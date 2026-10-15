@@ -33,14 +33,15 @@ function PagamentoModal({
             return;
         }
 
-        // Strategy: aplica a regra da forma escolhida antes de confirmar.
+        // Strategy: aplica as regras da forma escolhida antes de confirmar.
         try {
             ESTRATEGIAS[forma].validar(numero);
         } catch (erro) {
-            alert((erro as Error).message);
+            alert(erro instanceof Error ? erro.message : "Forma de pagamento inválida.");
             return;
         }
 
+        // Delega a persistência ao chamador, que escolhe entre entrada ou checkout final.
         onConfirmar(numero, forma);
     }
 

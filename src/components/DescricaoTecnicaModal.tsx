@@ -3,6 +3,7 @@ import Modal from "./Modal";
 import LogModal from "./LogModal";
 import { useApp } from "../hooks/useApp";
 import type { InsumoUsado, Progresso } from "../context/AppContext";
+import type { ItemPedido } from "../models/ItemPedido";
 import type { Pedido } from "../models/Pedido";
 
 const PASSOS: { id: Progresso; rotulo: string; cor: string }[] = [
@@ -21,6 +22,14 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
     const { insumos, salvarDescricaoTecnica, cancelarPedido } = useApp();
 
     const [laudo, setLaudo] = useState(pedido.laudoTecnico);
+    // Carrega os valores já salvos para permitir revisar ou limpar o orçamento.
+    const [orcamentos, setOrcamentos] = useState<Record<number, string>>(() =>
+        Object.fromEntries(
+            pedido.itens
+                .filter(isServicoComOrcamento)
+                .map((item) => [item.idPedidoServico, String(item.servico.valorOrcado() ?? "")])
+        )
+    );
     const [buscaInsumo, setBuscaInsumo] = useState("");
     const [novos, setNovos] = useState<InsumoUsado[]>([]);
     const [progresso, setProgresso] = useState<Progresso | null>(null);
@@ -65,8 +74,20 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
         setNovos(novos.map((n) => (n.idInsumo === idInsumo ? { ...n, quantidade } : n)));
     }
 
+    // Envia laudo, insumos e progresso em uma operação; o hook atualiza pedido e estoque ao concluir.
     async function salvar() {
-        const erro = await salvarDescricaoTecnica(pedido.id, laudo, novos, progresso);
+        // Envia cada linha de orçamento identificada no banco; campo vazio limpa o valor
+        // persistido para que o backend volte ao preço cadastrado do serviço.
+        const valoresOrcados = pedido.itens
+            .filter(isServicoComOrcamento)
+            .map((item) => {
+                const value = orcamentos[item.idPedidoServico] ?? "";
+                return {
+                    idPedidoServico: item.idPedidoServico,
+                    valor: value.trim() === "" ? null : Number(value)
+                };
+            });
+        const erro = await salvarDescricaoTecnica(pedido.id, laudo, novos, progresso, valoresOrcados);
 
         if (erro) {
             alert(erro);
@@ -76,6 +97,7 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
         onFechar();
     }
 
+    // O modal só recolhe o motivo; o servidor faz a mudança de etapa e grava o log.
     async function confirmarCancelamento() {
         const erro = await cancelarPedido(pedido.id, motivo);
 
@@ -107,6 +129,37 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
                     onChange={(e) => setLaudo(e.target.value)}
                 />
             </div>
+
+            {pedido.itens.some((item) => item.servico.tipoCobranca() === "orcamento") && (
+                <div className="campo">
+                    <h3>Orçamento técnico</h3>
+                    <p>Informe o valor final de cada serviço cobrado por orçamento. Deixe vazio para usar o valor cadastrado.</p>
+                    {/* Só mostra linhas configuradas como orçamento, sem alterar outros tipos de cobrança. */}
+                    {pedido.itens
+                        .filter((item) => item.servico.tipoCobranca() === "orcamento")
+                        .map((item, index) => (
+                            <label key={item.idPedidoServico ?? `${item.servico.id}-${index}`}>
+                                {item.servico.nome}
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.idPedidoServico ? orcamentos[item.idPedidoServico] ?? "" : ""}
+                                    disabled={!item.idPedidoServico}
+                                    title={!item.idPedidoServico ? "Esta linha precisa ser recarregada antes de informar o orçamento." : undefined}
+                                    onChange={(event) => {
+                                        if (!item.idPedidoServico) return;
+                                        setOrcamentos({
+                                            ...orcamentos,
+                                            [item.idPedidoServico]: event.target.value
+                                        });
+                                    }}
+                                />
+                            </label>
+                        ))}
+                    <small>O total não pode ficar abaixo do valor já pago.</small>
+                </div>
+            )}
 
             <div className="bloco-insumos">
                 <h3>Adicionar Insumos</h3>
@@ -243,6 +296,13 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
             )}
         </Modal>
     );
+}
+
+function isServicoComOrcamento(
+    item: ItemPedido
+): item is ItemPedido & { idPedidoServico: number } {
+    // O ID de pedido_servico é necessário para que a API altere a linha correta.
+    return item.servico.tipoCobranca() === "orcamento" && item.idPedidoServico !== undefined;
 }
 
 export default DescricaoTecnicaModal;

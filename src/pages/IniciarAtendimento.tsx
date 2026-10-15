@@ -6,7 +6,13 @@ import { useApp } from "../hooks/useApp";
 import { Cliente } from "../models/Cliente";
 import { ItemPedido } from "../models/ItemPedido";
 import { Pedido } from "../models/Pedido";
+import { Servico } from "../models/Servico";
 import { moeda } from "../utils/formatadores";
+import type { TipoCobranca } from "../services/EstrategiaCobranca";
+import type { TipoProcessamentoPedido } from "../services/EstrategiaProcessamentoPedido";
+import { criarEstrategiaCobranca } from "../services/criarEstrategiaCobranca";
+
+//parte mais complexa da manipulação de pedido pq tem o fluxo de estados 
 
 const DETALHES_VAZIOS = { modelo: "", marca: "", numeroSerie: "", estado: "", observacao: "", foto: "" };
 
@@ -20,6 +26,10 @@ function IniciarAtendimento() {
 
     const [buscaServico, setBuscaServico] = useState("");
     const [selecionados, setSelecionados] = useState<number[]>([]);
+    // Guarda a modalidade por ID para cada serviço que o usuário selecionar.
+    const [tiposCobranca, setTiposCobranca] = useState<Record<number, TipoCobranca>>({});
+    // A ordem começa como comum e pode ser alterada antes de salvar.
+    const [tipoProcessamento, setTipoProcessamento] = useState<TipoProcessamentoPedido>("comum");
     const [detalhes, setDetalhes] = useState(DETALHES_VAZIOS);
     const [itens, setItens] = useState<ItemPedido[]>([]);
 
@@ -34,9 +44,11 @@ function IniciarAtendimento() {
                 .includes(buscaServico.trim().toLowerCase())
         );
 
+    // Este total é uma prévia local; ao salvar, a API recalcula usando os serviços do banco.
     const total = itens.reduce((soma, item) => soma + item.valorCobrado(), 0);
 
-    function buscarCliente() {
+    // Primeiro localiza o cliente já carregado pelo domínio ou abre o cadastro de um novo.
+    function buscarCliente() { 
         const termo = busca.trim().toLowerCase();
 
         if (!termo) {
@@ -60,6 +72,7 @@ function IniciarAtendimento() {
     }
 
     async function aoCadastrarCliente(novo: Cliente): Promise<string | null> {
+        // Só associa o cliente ao atendimento depois que o cadastro foi aceito pela API.
         const result = await cadastrarCliente(novo);
         if (typeof result === "string") return result;
         setCliente(result);
@@ -84,20 +97,32 @@ function IniciarAtendimento() {
             return;
         }
 
+        // Cada linha recebe sua própria estratégia; assim dois serviços da mesma OS
+        // podem ser cobrados de formas diferentes.
         const novos = servicos
             .filter((servico) => selecionados.includes(servico.id))
-            .map(
-                (servico) =>
-                    new ItemPedido(
-                        servico,
+            .map((servico) => {
+                // O serviço original do catálogo não é alterado; cria-se uma cópia
+                // para guardar a regra escolhida especificamente para esta OS.
+                const servicoComCobranca = new Servico(
+                        servico.id,
+                        servico.nome,
+                        servico.valor,
+                        servico.horasEstimadas,
+                        servico.descricao,
+                        criarEstrategiaCobranca(tiposCobranca[servico.id] ?? "preco_fixo")
+                    );
+                    if (!servico.status) servicoComCobranca.desativar();
+                    return new ItemPedido(
+                        servicoComCobranca,
                         detalhes.modelo.trim(),
                         detalhes.marca.trim(),
                         detalhes.numeroSerie.trim(),
                         detalhes.estado.trim(),
                         detalhes.observacao.trim(),
-                        detalhes.foto
-                    )
-            );
+                        detalhes.foto //guarda apenas o nome do arquivo de foto
+                    );
+            });
 
         setItens([...itens, ...novos]);
         setSelecionados([]);
@@ -109,9 +134,10 @@ function IniciarAtendimento() {
             return;
         }
 
+        // O ID temporário 0 não é persistido: o backend gera o ID real no MySQL.
         const pedido = new Pedido(0, cliente, itens[0].servico, itens);
         try {
-            setPedidoCriado(await criarPedido(pedido));
+            setPedidoCriado(await criarPedido(pedido, tipoProcessamento));
         } catch (error) {
             alert(error instanceof Error ? error.message : "Não foi possível criar o pedido.");
         }
@@ -120,9 +146,11 @@ function IniciarAtendimento() {
     function reiniciar() {
         setBusca("");
         setCliente(null);
-        setIniciado(false);
+        setIniciado(false); //estado false de iniciado ao reiniciar
         setBuscaServico("");
         setSelecionados([]);
+        setTiposCobranca({});
+        setTipoProcessamento("comum");
         setDetalhes(DETALHES_VAZIOS);
         setItens([]);
         setPedidoCriado(null);
@@ -137,6 +165,7 @@ function IniciarAtendimento() {
             return;
         }
 
+        // A entrada é registrada depois que criarPedido devolveu o ID persistido.
         const erro = await registrarPagamento(pedidoCriado.id, valor, forma);
 
         if (erro) {
@@ -202,7 +231,7 @@ function IniciarAtendimento() {
                     </div>
 
                     <div className="centro">
-                        {iniciado ? (
+                        {iniciado ? ( //reseta a tela de atendimento, nada foi gravado. O pedido só é registrado no banco de dados depois da função gerarOS
                             <button type="button" className="btn btn-neutro" onClick={reiniciar}>
                                 Cancelar Atendimento
                             </button>
@@ -211,7 +240,7 @@ function IniciarAtendimento() {
                                 type="button"
                                 className="btn btn-neutro"
                                 disabled={!cliente}
-                                onClick={() => setIniciado(true)}
+                                onClick={() => setIniciado(true)} //mudança do estado de iniciado para true ao iniciar o atendimento
                             >
                                 Iniciar Atendimento
                             </button>
@@ -219,9 +248,10 @@ function IniciarAtendimento() {
                     </div>
                 </div>
             </section>
-
-            <fieldset className="etapas-atendimento" disabled={!iniciado}>
-                {/* ---------- Serviço ---------- */}
+            
+            <fieldset className="etapas-atendimento" disabled={!iniciado}> 
+                {/* fieldset disabled --> esabilita nativamente todos os campos da erapa seguinte do atendimento */}
+                {/* Serviço */}
                 <section className="painel">
                     <div className="painel-titulo painel-titulo-linha">
                         <h2>Serviço</h2>
@@ -242,17 +272,22 @@ function IniciarAtendimento() {
                                     <th>Descrição</th>
                                     <th>Valor</th>
                                     <th>Prazo</th>
+                                    <th>Regra de cobrança</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {servicosAtivos.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="vazio">
+                                        <td colSpan={6} className="vazio">
                                             Nenhum serviço disponível. Cadastre em Dashboards e Gestão &gt; Gerência de Serviços.
                                         </td>
                                     </tr>
                                 )}
-                                {servicosAtivos.map((servico) => (
+                                {servicosAtivos.map((servico) => {
+                                    const tipo = tiposCobranca[servico.id] ?? "preco_fixo";
+                                    // Mostra uma estimativa calculada pela mesma estratégia usada no modelo.
+                                    const valorPrevisto = criarEstrategiaCobranca(tipo).calcular(servico);
+                                    return (
                                     <tr key={servico.id}>
                                         <td>
                                             <input
@@ -263,16 +298,59 @@ function IniciarAtendimento() {
                                         </td>
                                         <td>{servico.nome}</td>
                                         <td>{servico.descricao}</td>
-                                        <td>{moeda(servico.valor)}</td>
+                                        <td>
+                                            {tipo === "hora_tecnica"
+                                                ? `${moeda(servico.valor)}/h (${moeda(valorPrevisto)} estimado)`
+                                                : tipo === "orcamento"
+                                                  ? `${moeda(servico.valor)} (estimativa)`
+                                                  : moeda(valorPrevisto)}
+                                        </td>
                                         <td>{servico.horasEstimadas}h</td>
+                                        <td>
+                                            <select
+                                                value={tipo}
+                                                onChange={(e) =>
+                                                    // A escolha é lembrada por ID até adicionar o serviço.
+                                                    setTiposCobranca({
+                                                        ...tiposCobranca,
+                                                        [servico.id]: e.target.value as TipoCobranca
+                                                    })
+                                                }
+                                            >
+                                                <option value="preco_fixo">Preço fixo</option>
+                                                <option value="hora_tecnica">Hora técnica</option>
+                                                <option value="orcamento">Orçamento técnico</option>
+                                            </select>
+                                        </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
                 </section>
 
-                {/* ---------- Detalhes do Serviço ---------- */}
+                <section className="painel">
+                    <div className="painel-corpo">
+                        <div className="campo">
+                            <label htmlFor="tipo-processamento">Tipo de processamento</label>
+                            <select
+                                id="tipo-processamento"
+                                value={tipoProcessamento}
+                                onChange={(e) =>
+                                    // A seleção será passada ao ProcessarPedido e ao endpoint de criação.
+                                    setTipoProcessamento(e.target.value as TipoProcessamentoPedido)
+                                }
+                            >
+                                <option value="comum">Comum</option>
+                                <option value="urgente">Urgente</option>
+                                <option value="garantia">Garantia</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Detalhes do Serviço: exige pelo menos um serviço e um modelo de item a receber o serviço preenchidos para criar um pedido (ItemPedido) */}
                 <section className="painel">
                     <h2 className="painel-titulo">Detalhes do Serviço</h2>
 
@@ -336,7 +414,7 @@ function IniciarAtendimento() {
                     </div>
                 </section>
 
-                {/* ---------- Resumo ---------- */}
+                {/* Resumo: listar itens do pedido com a alternativa de remover */}
                 <section className="painel">
                     <h2 className="painel-titulo">Resumo</h2>
 
@@ -389,7 +467,7 @@ function IniciarAtendimento() {
                     type="button"
                     className="btn btn-claro"
                     disabled={!iniciado || itens.length === 0}
-                    onClick={gerarOS}
+                    onClick={gerarOS} //monta o new Pedido(0, cliente, itens[0].servico, itens e chama criarPedido
                 >
                     Gerar e Enviar OS
                 </button>
@@ -401,7 +479,7 @@ function IniciarAtendimento() {
                 </Modal>
             )}
 
-            {pedidoCriado && !pagando && (
+            {pedidoCriado && !pagando && ( //Pedido Cadastrado: pergunta se quer apagar na entrada do pedido, se sim ent direciona para a parte de pagamento ou reinicia a aba de iniciar atendimento
                 <Modal titulo="Pedido Cadastrado" icone="+" onFechar={reiniciar}>
                     <p className="centro">
                         OS #{pedidoCriado.id} gerada ({moeda(pedidoCriado.valorTotal)}).

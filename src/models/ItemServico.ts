@@ -1,3 +1,6 @@
+// Ainda não é instanciada
+// Representa a tabela pedido_serviço planejada (servico, pedido e valor cobrado).
+
 export class ItemServico {
     idServico: number;
     idPedido: number;

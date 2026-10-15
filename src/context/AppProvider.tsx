@@ -8,17 +8,31 @@ import { useFinanceDomain } from "./domains/useFinanceDomain";
 import { useFuncionarioDomain } from "./domains/useFuncionarioDomain";
 import { usePedidoDomain } from "./domains/usePedidoDomain";
 import { useServicoDomain } from "./domains/useServicoDomain";
+import { PERMISSOES, temPermissao } from "../auth/permissions";
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [apiError, setApiError] = useState("");
     const reportError = useCallback((message: string) => setApiError(message), []);
     const auth = useAuthDomain(reportError);
     const authenticated = Boolean(auth.usuario);
+    const cargo = auth.usuario?.cargo;
     const clientes = useClienteDomain(authenticated, reportError);
     const servicos = useServicoDomain(authenticated, reportError);
-    const estoque = useEstoqueDomain(authenticated, reportError);
-    const financeiro = useFinanceDomain(authenticated, reportError);
-    const funcionarios = useFuncionarioDomain(authenticated, reportError);
+    const podeConsultarEstoque = Boolean(cargo && temPermissao(cargo, PERMISSOES.estoqueConsultar));
+    const podeGerenciarFuncionarios = Boolean(
+        cargo && temPermissao(cargo, PERMISSOES.funcionariosGerenciar)
+    );
+    const podeGerenciarDespesas = Boolean(
+        cargo && temPermissao(cargo, PERMISSOES.despesasGerenciar)
+    );
+    const estoque = useEstoqueDomain(podeConsultarEstoque, reportError);
+    const financeiro = useFinanceDomain(authenticated, podeGerenciarDespesas, reportError);
+    const funcionarios = useFuncionarioDomain(
+        podeGerenciarFuncionarios,
+        auth.usuario?.cargo === "Dono",
+        reportError
+    );
+    // O domínio de pedidos também atualiza estoque e notas quando suas operações alteram esses dados.
     const pedidos = usePedidoDomain(
         authenticated,
         reportError,
@@ -46,6 +60,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 alterarServico: servicos.alterarServico,
                 cadastrarInsumo: estoque.cadastrarInsumo,
                 movimentarEstoque: estoque.movimentarEstoque,
+                // Expõe as operações do domínio pelo contexto global consumido por hooks das telas.
                 criarPedido: pedidos.criarPedido,
                 moverEtapa: pedidos.moverEtapa,
                 salvarDescricaoTecnica: pedidos.salvarDescricaoTecnica,

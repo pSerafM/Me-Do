@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import RotaProtegida from "./RotaProtegida";
+import RotaComPermissao from "./RotaComPermissao";
 import AppShell from "../layouts/AppShell";
 import SecaoComAbas from "../components/SecaoComAbas";
 
@@ -16,6 +17,8 @@ import Dashboard from "../pages/Dashboard";
 import Funcionarios from "../pages/Funcionarios";
 import CadastrarFuncionario from "../pages/CadastrarFuncionario";
 import GerenciaServicos from "../pages/GerenciaServicos";
+import { PERMISSOES, temPermissao } from "../auth/permissions";
+import { useApp } from "../hooks/useApp";
 
 const ABAS_FINANCEIRO = [
     { rotulo: "Checkout", para: "/app/financeiro/checkout" },
@@ -31,6 +34,27 @@ const ABAS_GESTAO = [
 ];
 
 function AppRoutes() {
+    const { usuario } = useApp();
+    const cargo = usuario?.cargo;
+    const abasFinanceiro = ABAS_FINANCEIRO.filter((aba) => {
+        if (aba.para.endsWith("/despesas")) {
+            return cargo && temPermissao(cargo, PERMISSOES.despesasGerenciar);
+        }
+        if (aba.para.endsWith("/estoque")) {
+            return cargo && temPermissao(cargo, PERMISSOES.estoqueGerenciar);
+        }
+        return true;
+    });
+    const abasGestao = ABAS_GESTAO.filter((aba) => {
+        if (aba.para.endsWith("/visao-geral")) {
+            return cargo && temPermissao(cargo, PERMISSOES.visaoFinanceira);
+        }
+        if (aba.para.endsWith("/funcionarios")) {
+            return cargo && temPermissao(cargo, PERMISSOES.funcionariosGerenciar);
+        }
+        return cargo && temPermissao(cargo, PERMISSOES.servicosGerenciar);
+    });
+
     return (
         <Routes>
             {/* Landing Page com login */}
@@ -41,25 +65,51 @@ function AppRoutes() {
                 <Route path="/app" element={<AppShell />}>
                     <Route index element={<Home />} />
                     <Route path="perfil" element={<Perfil />} />
-                    <Route path="atendimento" element={<IniciarAtendimento />} />
-                    <Route path="ordens-servico" element={<OrdensServico />} />
+                    <Route element={<RotaComPermissao permissao={PERMISSOES.pedidosCriar} />}>
+                        <Route path="atendimento" element={<IniciarAtendimento />} />
+                    </Route>
+                    <Route element={<RotaComPermissao permissao={PERMISSOES.pedidosConsultar} />}>
+                        <Route path="ordens-servico" element={<OrdensServico />} />
+                    </Route>
 
                     {/* Home > Financeiro e Estoque (abas) */}
-                    <Route path="financeiro" element={<SecaoComAbas abas={ABAS_FINANCEIRO} />}>
-                        <Route index element={<Navigate to="checkout" replace />} />
-                        <Route path="checkout" element={<Checkout />} />
-                        <Route path="despesas" element={<Despesas />} />
-                        <Route path="notas-fiscais" element={<NotaFiscal />} />
-                        <Route path="estoque" element={<Estoque />} />
+                    <Route element={<RotaComPermissao permissao={PERMISSOES.checkout} />}>
+                        <Route path="financeiro" element={<SecaoComAbas abas={abasFinanceiro} />}>
+                            <Route index element={<Navigate to="checkout" replace />} />
+                            <Route path="checkout" element={<Checkout />} />
+                            <Route path="notas-fiscais" element={<NotaFiscal />} />
+                            <Route element={<RotaComPermissao permissao={PERMISSOES.despesasGerenciar} />}>
+                                <Route path="despesas" element={<Despesas />} />
+                            </Route>
+                            <Route element={<RotaComPermissao permissao={PERMISSOES.estoqueGerenciar} />}>
+                                <Route path="estoque" element={<Estoque />} />
+                            </Route>
+                        </Route>
                     </Route>
 
                     {/* Home > Dashboards e Gestão (abas) */}
-                    <Route path="gestao" element={<SecaoComAbas abas={ABAS_GESTAO} />}>
-                        <Route index element={<Navigate to="visao-geral" replace />} />
-                        <Route path="visao-geral" element={<Dashboard />} />
-                        <Route path="funcionarios" element={<Funcionarios />} />
-                        <Route path="funcionarios/novo" element={<CadastrarFuncionario />} />
-                        <Route path="servicos" element={<GerenciaServicos />} />
+                    <Route element={<RotaComPermissao permissao={PERMISSOES.funcionariosGerenciar} />}>
+                        <Route path="gestao" element={<SecaoComAbas abas={abasGestao} />}>
+                            <Route
+                                index
+                                element={
+                                    <Navigate
+                                        to={cargo === "Dono" ? "visao-geral" : "funcionarios"}
+                                        replace
+                                    />
+                                }
+                            />
+                            <Route element={<RotaComPermissao permissao={PERMISSOES.visaoFinanceira} />}>
+                                <Route path="visao-geral" element={<Dashboard />} />
+                            </Route>
+                            <Route element={<RotaComPermissao permissao={PERMISSOES.funcionariosGerenciar} />}>
+                                <Route path="funcionarios" element={<Funcionarios />} />
+                                <Route path="funcionarios/novo" element={<CadastrarFuncionario />} />
+                            </Route>
+                            <Route element={<RotaComPermissao permissao={PERMISSOES.servicosGerenciar} />}>
+                                <Route path="servicos" element={<GerenciaServicos />} />
+                            </Route>
+                        </Route>
                     </Route>
                 </Route>
             </Route>

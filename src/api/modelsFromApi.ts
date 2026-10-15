@@ -9,6 +9,10 @@ import { NotaFiscal, type StatusNota } from "../models/NotaFiscal";
 import { Pedido, type EtapaOS } from "../models/Pedido";
 import { RegistroLog } from "../models/RegistroLog";
 import { Servico } from "../models/Servico";
+import type { Cargo } from "../auth/permissions";
+import type { TipoCobranca } from "../services/EstrategiaCobranca";
+import { criarEstrategiaCobranca } from "../services/criarEstrategiaCobranca";
+import type { TipoProcessamentoPedido } from "../services/EstrategiaProcessamentoPedido";
 
 export interface ApiServico {
     id: number;
@@ -17,13 +21,19 @@ export interface ApiServico {
     horasEstimadas: number;
     descricao: string;
     status: boolean;
+    // Campos opcionais para compatibilidade com respostas que ainda não incluem strategies.
+    tipoCobranca?: TipoCobranca;
+    valorOrcado?: number | null;
 }
 
 export interface ApiPedido {
+    // Formato retornado pelo endpoint; contém o pedido e coleções carregadas por relações SQL.
     id: number;
     cliente: { id: number; nome: string; cpfCnpj: string; telefone: string };
     servico: ApiServico;
     status: string;
+    // Modalidade selecionada na criação e persistida na coluna tipo_processamento.
+    tipoProcessamento: TipoProcessamentoPedido;
     valorTotal: number;
     etapa: EtapaOS;
     dataAbertura: string;
@@ -40,6 +50,8 @@ export interface ApiPedido {
         estado: string;
         observacao: string;
         foto: string;
+        // ID usado para salvar orçamento técnico na relação correspondente.
+        idPedidoServico?: number;
     }[];
     insumosUsados: {
         idItemInsumo: number;
@@ -68,12 +80,17 @@ export function reviverCliente(row: {
 }
 
 export function reviverServico(row: ApiServico): Servico {
+    // A API manda o tipo e orçamento; o helper converte isso em uma estratégia executável.
     const servico = new Servico(
         Number(row.id),
         row.nome,
         Number(row.valor),
         Number(row.horasEstimadas),
-        row.descricao
+        row.descricao,
+        criarEstrategiaCobranca(
+            row.tipoCobranca ?? "preco_fixo",
+            row.valorOrcado == null ? undefined : Number(row.valorOrcado)
+        )
     );
     if (!row.status) servico.desativar();
     return servico;
@@ -108,7 +125,7 @@ export function reviverFuncionario(row: {
     telefone: string;
     email: string;
     genero: string;
-    dataDeNascimento: string;
+    dataDeNascimento: string | null;
     cep: string;
     rua: string;
     cidade: string;
@@ -116,6 +133,7 @@ export function reviverFuncionario(row: {
     complemento: string;
     status: string;
     numero: number;
+    cargo: Cargo;
 }): Funcionario {
     return new Funcionario(
         Number(row.idFuncionario),
@@ -124,14 +142,15 @@ export function reviverFuncionario(row: {
         row.telefone,
         row.email,
         row.genero,
-        localCalendarDate(row.dataDeNascimento),
+        row.dataDeNascimento ? localCalendarDate(row.dataDeNascimento) : null,
         row.cep,
         row.rua,
         row.cidade,
         row.estado,
         row.complemento,
         row.status,
-        Number(row.numero)
+        Number(row.numero),
+        row.cargo
     );
 }
 
@@ -175,8 +194,10 @@ export function reviverNota(row: {
 }
 
 export function reviverPedido(row: ApiPedido): Pedido {
+    // Converte o JSON da API em classes de domínio e datas nativas usadas pelas telas.
     const cliente = reviverCliente(row.cliente);
     const servico = reviverServico(row.servico);
+    // Cada item reidrata sua própria regra de cobrança e seu ID persistido.
     const itens = row.itens.map((item) =>
         new ItemPedido(
             reviverServico(item.servico),
@@ -185,11 +206,14 @@ export function reviverPedido(row: ApiPedido): Pedido {
             item.numeroSerie,
             item.estado,
             item.observacao,
-            item.foto
+            item.foto,
+            item.idPedidoServico
         )
     );
     const pedido = new Pedido(Number(row.id), cliente, servico, itens);
     pedido.status = row.status;
+    // Restaura qual estratégia de processamento originou o status do pedido.
+    pedido.tipoProcessamento = row.tipoProcessamento;
     pedido.valorTotal = Number(row.valorTotal);
     pedido.etapa = row.etapa;
     pedido.dataAbertura = parseDateTime(row.dataAbertura);
@@ -198,6 +222,7 @@ export function reviverPedido(row: ApiPedido): Pedido {
     pedido.laudoTecnico = row.laudoTecnico;
     pedido.motivoCancelamento = row.motivoCancelamento;
     pedido.encerrado = row.encerrado;
+    // Restaura relacionamentos filhos para que saldo, histórico e modais usem modelos tipados.
     pedido.insumosUsados = row.insumosUsados.map(
         (item) =>
             new ItemInsumo(

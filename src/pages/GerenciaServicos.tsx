@@ -44,7 +44,7 @@ function GerenciaServicos() {
                 <h2 className="painel-titulo">Novo Serviço</h2>
 
                 <div className="painel-corpo">
-                    <ServicoForm
+                    <ServicoForm //chama cadastrarServiço(new Servico(Date.now())) com id provisório e o restante é mantido pelo backend
                         rotuloBotao="Registrar"
                         limparAoSalvar
                         onSalvar={(dados) =>
@@ -77,15 +77,16 @@ function GerenciaServicos() {
                             </tr>
                         </thead>
                         <tbody>
-                            {servicos.length === 0 && (
+                            {servicos.length === 0 && ( //tabela de serviços
                                 <tr>
                                     <td colSpan={5} className="vazio">
                                         Nenhum serviço registrado.
                                     </td>
                                 </tr>
                             )}
-                            {servicos.map((servico) => (
-                                <tr key={servico.id} className={servico.status ? "" : "linha-inativa"}>
+                            {servicos.map((servico) => ( 
+                                // os serviços inativos vão recever a classe linha-inativa e o texto "inativo"
+                                <tr key={servico.id} className={servico.status ? "" : "linha-inativa"}> 
                                     <td>
                                         {servico.nome}
                                         {!servico.status && " (inativo)"}
@@ -97,7 +98,7 @@ function GerenciaServicos() {
                                             type="button"
                                             className="btn btn-primario btn-pequeno"
                                             title="Editar"
-                                            onClick={() => setIdEditando(servico.id)}
+                                            onClick={() => setIdEditando(servico.id)} // ao clicar no botão de edição, ele vai guardar o id do serviço como idEditando, e abre o modal com o ServicoForm preenchido com os dados do antigo serviço pronto para edição
                                         >
                                             ✎
                                         </button>
@@ -106,7 +107,9 @@ function GerenciaServicos() {
                                         <button
                                             type="button"
                                             className="btn btn-neutro btn-pequeno"
-                                            title={servico.status ? "Inativar" : "Reativar"}
+                                            title={servico.status ? "Inativar" : "Reativar"} //ao inativar, o pedidosAtivosDoServico conta os pedidos que não estão "retirado" nem "cancelado" e "usam o serviço", e esse número aparece num window.confirm. 
+                                            //depois chama alterarServico(id, { status: !status })
+                                            //a inativação de um serviço não bloqueia nenhum pedido ativo, só não podem ser mais cadastrados novos pedidos com o determinado serviço inativado.
                                             onClick={() => alternarStatus(servico)}
                                         >
                                             {servico.status ? "⊖" : "⊕"}
@@ -121,7 +124,7 @@ function GerenciaServicos() {
 
             {servicoEditando && (
                 <Modal titulo="Editar Serviço" icone="✎" onFechar={() => setIdEditando(null)}>
-                    <ServicoForm
+                    <ServicoForm 
                         inicial={servicoEditando}
                         rotuloBotao="Salvar"
                         onSalvar={async (dados) => {
