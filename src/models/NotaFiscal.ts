@@ -31,6 +31,7 @@ export class NotaFiscal {
     }
 
     gerarChaveAcesso(): void {
+        // Gera uma chave simplificada com os dados da nota fiscal.
         this.chaveAcesso = `${this.serie}-${this.numero}-${this.idPedido}`;
     }
 
