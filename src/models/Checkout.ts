@@ -1,3 +1,4 @@
+import { obterEstrategia } from "../services/EstrategiaPagamento";
 export class Checkout {
     // Um pedido pode ter vários registros de pagamento, por exemplo entrada e saldo final.
     idPedido: number;
@@ -25,13 +26,16 @@ export class Checkout {
         if (this.valorPago <= 0) {
             throw new Error("O valor do pagamento deve ser maior que zero.");
         }
+        // Strategy: a regra específica depende da forma de pagamento escolhida.
+        obterEstrategia(this.formaPagamento).validar(this.valorPago);
     }
 
     alterarFormaPagamento(novaForma: string): void {
+        obterEstrategia(novaForma);
         this.formaPagamento = novaForma;
     }
 
     exibirDados(): string {
-        return `Pedido #${this.idPedido} - R$ ${this.valorPago.toFixed(2)} - ${this.formaPagamento}`;
+        return `Pedido #${this.idPedido} - ${obterEstrategia(this.formaPagamento).descrever(this.valorPago)}`;
     }
 }

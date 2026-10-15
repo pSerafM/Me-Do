@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import Modal from "./Modal";
 import type { FormaPagamento } from "../context/AppContext";
 import { moeda } from "../utils/formatadores";
+import { ESTRATEGIAS } from "../services/EstrategiaPagamento";
 
 interface PagamentoModalProps {
     titulo: string;
@@ -29,6 +30,14 @@ function PagamentoModal({
 
         if (Number.isNaN(numero) || numero <= 0) {
             alert("Informe um valor maior que zero.");
+            return;
+        }
+
+        // Strategy: aplica as regras da forma escolhida antes de confirmar.
+        try {
+            ESTRATEGIAS[forma].validar(numero);
+        } catch (erro) {
+            alert(erro instanceof Error ? erro.message : "Forma de pagamento inválida.");
             return;
         }
 
@@ -61,10 +70,11 @@ function PagamentoModal({
                         value={forma}
                         onChange={(e) => setForma(e.target.value as FormaPagamento)}
                     >
-                        <option value="pix">Pix</option>
-                        <option value="credito">Crédito</option>
-                        <option value="debito">Débito</option>
-                        <option value="dinheiro">Dinheiro</option>
+                        {Object.entries(ESTRATEGIAS).map(([chave, estrategia]) => (
+                            <option key={chave} value={chave}>
+                                {estrategia.rotulo}
+                            </option>
+                        ))}
                     </select>
                 </div>
 

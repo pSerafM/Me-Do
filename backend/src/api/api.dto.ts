@@ -12,13 +12,15 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  Validate,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CARGOS } from '../auth/roles.js';
+import { IsValidCpfCnpjConstraint } from './document-validator.js';
 
 export class ClienteDto {
   @IsString() @IsNotEmpty() nome!: string;
-  @IsString() @IsNotEmpty() cpfCnpj!: string;
+  @IsString() @IsNotEmpty() @Validate(IsValidCpfCnpjConstraint) cpfCnpj!: string;
   @IsString() @IsNotEmpty() telefone!: string;
 }
 
