@@ -89,12 +89,21 @@ export class OrderItemDto {
   @IsOptional() @IsString() estado?: string;
   @IsOptional() @IsString() observacao?: string;
   @IsOptional() @IsString() foto?: string;
+  // A API só aceita valores correspondentes às estratégias suportadas e salvas no ENUM SQL.
+  @IsOptional() @IsIn(['preco_fixo', 'hora_tecnica', 'orcamento'])
+  tipoCobranca?: 'preco_fixo' | 'hora_tecnica' | 'orcamento';
 }
 
 export class CriarPedidoDto {
   // O cliente e o serviço principal devem existir; itens detalha os serviços associados.
   @IsInt() @Min(1) clienteId!: number;
   @IsInt() @Min(1) servicoId!: number;
+  // Opções legadas para pedido sem lista detalhada de itens.
+  @IsOptional() @IsIn(['preco_fixo', 'hora_tecnica', 'orcamento'])
+  tipoCobranca?: 'preco_fixo' | 'hora_tecnica' | 'orcamento';
+  // Whitelist do tipo de processamento escolhido na tela de criação.
+  @IsOptional() @IsIn(['comum', 'urgente', 'garantia'])
+  tipoProcessamento?: 'comum' | 'urgente' | 'garantia';
   @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto)
   itens!: OrderItemDto[];
 }
@@ -108,11 +117,21 @@ export class InsumoUsadoDto {
   @IsNumber() @Min(0.001) quantidade!: number;
 }
 
+export class OrcamentoServicoDto {
+  // Identifica qual relação pedido_servico o técnico está orçando.
+  @IsInt() @Min(1) idPedidoServico!: number;
+  // Null limpa o orçamento e faz a API usar como alternativa o preço do serviço.
+  @IsOptional() @IsNumber() @Min(0) valor!: number | null;
+}
+
 export class SalvarLaudoDto {
   // O técnico envia o laudo, os insumos consumidos e, opcionalmente, o próximo progresso.
   @IsString() @MinLength(1) laudo!: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => InsumoUsadoDto)
   insumos!: InsumoUsadoDto[];
+  // Orçamentos usam o mesmo DTO validado antes de qualquer gravação na transação.
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => OrcamentoServicoDto)
+  orcamentos?: OrcamentoServicoDto[];
   @IsOptional()
   @IsIn(['iniciar', 'pausa', 'concluir', 'pronto'])
   progresso?: 'iniciar' | 'pausa' | 'concluir' | 'pronto' | null;

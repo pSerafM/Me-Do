@@ -6,6 +6,7 @@ import type { ItemPedido } from "./ItemPedido";
 import type { ItemInsumo } from "./itemInsumo";
 import type { Checkout } from "./Checkout";
 import { RegistroLog } from "./RegistroLog";
+import type { TipoProcessamentoPedido } from "../services/EstrategiaProcessamentoPedido";
 
 // Etapas do quadro Kanban de Ordens de Serviço (mais os estados finais).
 export type EtapaOS =
@@ -32,6 +33,8 @@ export class Pedido {
     cliente: Cliente;
     servico: Servico;
     status: string;
+    // Mantém o tipo escolhido separado da etapa do Kanban e do status resultante.
+    tipoProcessamento: TipoProcessamentoPedido = "comum";
     valorTotal: number;
 
     itens: ItemPedido[];

@@ -1,5 +1,5 @@
 import { CobrancaPrecoFixo } from "../services/CobrancaPrecoFixo";
-import type { EstrategiaCobranca } from "../services/EstrategiaCobranca";
+import type { EstrategiaCobranca, TipoCobranca } from "../services/EstrategiaCobranca";
 
 export class Servico {
     id: number;
@@ -48,6 +48,16 @@ export class Servico {
 
     nomeCobranca(): string {
         return this.estrategiaCobranca.nome;
+    }
+
+    // Expõe o tipo estável (ex.: "hora_tecnica") que vai no JSON e no banco.
+    tipoCobranca(): TipoCobranca {
+        return this.estrategiaCobranca.tipo;
+    }
+
+    // Retorna o orçamento somente quando a estratégia atual oferece esse dado.
+    valorOrcado(): number | undefined {
+        return this.estrategiaCobranca.valorOrcado;
     }
 
     // A estratégia escolhida decide o cálculo usando valor e horas deste serviço.

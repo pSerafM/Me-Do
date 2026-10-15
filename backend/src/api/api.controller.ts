@@ -22,6 +22,7 @@ import { RequirePermission } from '../auth/require-permission.decorator.js';
 import { PERMISSOES, temPermissao } from '../auth/roles.js';
 import type { Cargo } from '../auth/roles.js';
 import { DatabaseService, type SqlValue } from '../database/database.service.js';
+import { calcularValorCobranca, statusDoProcessamento } from './order-strategies.js';
 import {
   AtualizarFuncionarioDto,
   CancelarPedidoDto,
@@ -470,6 +471,7 @@ export class ApiController {
   @RequirePermission(PERMISSOES.pedidosConsultar)
   listarPedidos(@Req() request: AuthenticatedRequest) {
     // Reúne a OS e suas relações em uma resposta para o Kanban, checkout e histórico.
+    // A estratégia e o orçamento por linha são incluídos para o frontend reconstituir o cálculo.
     return this.db.query(
       `SELECT
          p.id,
@@ -478,7 +480,8 @@ export class ApiController {
          JSON_OBJECT('id', s.id, 'nome', s.nome, 'valor', s.valor,
                      'horasEstimadas', s.horas_estimadas,
                      'descricao', s.descricao, 'status', s.status) AS servico,
-         p.status, p.valor_total AS \`valorTotal\`, p.etapa,
+         p.status, p.tipo_processamento AS \`tipoProcessamento\`,
+         p.valor_total AS \`valorTotal\`, p.etapa,
          p.data_abertura AS \`dataAbertura\`, p.data_previsao AS \`dataPrevisao\`,
          p.data_conclusao AS \`dataConclusao\`, p.laudo_tecnico AS \`laudoTecnico\`,
          p.motivo_cancelamento AS \`motivoCancelamento\`, p.encerrado,
@@ -486,7 +489,9 @@ export class ApiController {
            SELECT JSON_ARRAYAGG(JSON_OBJECT(
              'servico', JSON_OBJECT('id', iserv.id, 'nome', iserv.nome,
                'valor', iserv.valor, 'horasEstimadas', iserv.horas_estimadas,
-               'descricao', iserv.descricao, 'status', iserv.status),
+               'descricao', iserv.descricao, 'status', iserv.status,
+               'tipoCobranca', psi.tipo_cobranca, 'valorOrcado', psi.valor_orcado),
+             'idPedidoServico', psi.id,
              'modelo', pi.modelo, 'marca', pi.marca, 'numeroSerie', pi.numero_serie,
              'estado', pi.estado, 'observacao', pi.observacao, 'foto', pi.foto
            ))
@@ -546,10 +551,28 @@ export class ApiController {
         throw new BadRequestException('Um ou mais serviços não foram encontrados ou estão inativos.');
       }
       const services = new Map(serviceRows.rows.map((row) => [Number(row.id), row]));
-      const total = serviceIds.reduce(
-        (sum, id) => sum + Number(services.get(id)?.valor ?? 0),
-        0,
-      );
+      // Calcula cada linha separadamente: duas linhas da mesma ordem podem usar regras diferentes.
+      const lines = serviceIds.map((id, index) => {
+        const service = services.get(id);
+        if (!service) throw new BadRequestException('Serviço não encontrado.');
+        const type = dto.itens[index]?.tipoCobranca ??
+          (index === 0 ? dto.tipoCobranca : undefined) ??
+          'preco_fixo';
+        return {
+          serviceId: id,
+          service,
+          type,
+          value: calcularValorCobranca(
+            {
+              valor: Number(service.valor),
+              horasEstimadas: Number(service.horasEstimadas),
+            },
+            type,
+          ),
+        };
+      });
+      // O valor total persistido é calculado no servidor usando os preços do banco.
+      const total = lines.reduce((sum, line) => sum + line.value, 0);
       const hours = serviceIds.reduce(
         (sum, id) => sum + Number(services.get(id)?.horasEstimadas ?? 0),
         0,
@@ -561,27 +584,29 @@ export class ApiController {
       ).rows;
       if (!customer) throw new NotFoundException('Cliente não encontrado.');
       const orderResult = await client.query(
-          `INSERT INTO pedido
-             (cliente_id, servico_id, valor_total, data_previsao, laudo_tecnico, motivo_cancelamento)
-           VALUES ($1, $2, $3, $4, '', '')`,
-          [
-            dto.clienteId,
-            serviceIds[0],
-            total,
-            new Date(Date.now() + hours * 3_600_000),
-          ],
-        );
+        `INSERT INTO pedido
+           (cliente_id, servico_id, status, tipo_processamento, valor_total, data_previsao, laudo_tecnico, motivo_cancelamento)
+         VALUES ($1, $2, $3, $4, $5, $6, '', '')`,
+        [
+          dto.clienteId,
+          serviceIds[0],
+          statusDoProcessamento(dto.tipoProcessamento ?? 'comum'),
+          dto.tipoProcessamento ?? 'comum',
+          total,
+          new Date(Date.now() + hours * 3_600_000),
+        ],
+      );
       const orderId = orderResult.insertId;
-      for (let index = 0; index < serviceIds.length; index++) {
-        const serviceId = serviceIds[index];
-        const service = services.get(serviceId);
-        if (!service) throw new BadRequestException('Serviço não encontrado.');
+      // Salva o tipo e o preço calculado em cada relação para manter o histórico da OS.
+      for (let index = 0; index < lines.length; index++) {
+        const { serviceId, type, value } = lines[index];
         const item = dto.itens[index];
         const serviceOrder = await client.query(
-            `INSERT INTO pedido_servico (pedido_id, servico_id, valor_cobrado)
-             VALUES ($1, $2, $3)`,
-            [orderId, serviceId, service.valor],
-          );
+          `INSERT INTO pedido_servico
+             (pedido_id, servico_id, tipo_cobranca, valor_orcado, valor_cobrado)
+           VALUES ($1, $2, $3, NULL, $4)`,
+          [orderId, serviceId, type, value],
+        );
         if (item) {
           await client.query(
             `INSERT INTO pedido_item
@@ -652,6 +677,82 @@ export class ApiController {
         await client.query<RowDataPacket & { etapa: string }>('SELECT etapa FROM pedido WHERE id = $1 FOR UPDATE', [id])
       ).rows;
       if (!order) throw new NotFoundException('Pedido não encontrado.');
+
+      if (dto.orcamentos?.length) {
+        // Impede valores repetidos para a mesma linha dentro de uma única atualização.
+        const uniqueIds = new Set(dto.orcamentos.map((quote) => quote.idPedidoServico));
+        if (uniqueIds.size !== dto.orcamentos.length) {
+          throw new BadRequestException('O mesmo serviço não pode receber mais de um orçamento.');
+        }
+        const lines = (
+          await client.query<
+            RowDataPacket & {
+              id: string;
+              tipoCobranca: 'preco_fixo' | 'hora_tecnica' | 'orcamento';
+              valorOrcado: string | null;
+              valorCobrado: string;
+              valorServico: string;
+              horasEstimadas: string;
+            }
+          >(
+            `SELECT psi.id, psi.tipo_cobranca AS \`tipoCobranca\`,
+                    psi.valor_orcado AS \`valorOrcado\`,
+                    psi.valor_cobrado AS \`valorCobrado\`,
+                    s.valor AS \`valorServico\`,
+                    s.horas_estimadas AS \`horasEstimadas\`
+             FROM pedido_servico psi
+             JOIN servico s ON s.id = psi.servico_id
+             WHERE psi.pedido_id = $1
+             FOR UPDATE`,
+            [id],
+          )
+        ).rows;
+        // Cria uma busca rápida e confirma que cada linha realmente pertence a este pedido.
+        const lineById = new Map(lines.map((line) => [Number(line.id), line]));
+        const quotedLines = dto.orcamentos.map((quote) => {
+          const line = lineById.get(quote.idPedidoServico);
+          if (!line) throw new BadRequestException('O serviço orçado não pertence a este pedido.');
+          if (line.tipoCobranca !== 'orcamento') {
+            throw new BadRequestException('Só é possível informar orçamento para serviços configurados nessa modalidade.');
+          }
+          const value = calcularValorCobranca(
+            { valor: Number(line.valorServico), horasEstimadas: Number(line.horasEstimadas) },
+            'orcamento',
+            quote.valor,
+          );
+          return { id: quote.idPedidoServico, valorOrcado: quote.valor, value };
+        });
+        const quotedById = new Map(quotedLines.map((line) => [line.id, line]));
+        // Recalcula o total com os novos orçamentos e mantém os valores atuais das demais linhas.
+        const newTotal = Math.round(
+          (lines.reduce(
+            (sum, line) =>
+              sum + (quotedById.get(Number(line.id))?.value ?? Number(line.valorCobrado)),
+            0,
+          ) +
+            Number.EPSILON) *
+            100,
+        ) / 100;
+        const [{ totalPago }] = (
+          await client.query<RowDataPacket & { totalPago: string }>(
+            `SELECT COALESCE(SUM(valor_pago), 0) AS \`totalPago\`
+             FROM checkout WHERE pedido_id = $1`,
+            [id],
+          )
+        ).rows;
+        // Não permite que uma revisão do orçamento deixe o cliente com crédito excedente.
+        if (newTotal + 0.001 < Number(totalPago)) {
+          throw new BadRequestException('O total do pedido não pode ficar abaixo do valor já pago.');
+        }
+        // A linha, o total da ordem e o pagamento são protegidos na mesma transação.
+        for (const line of quotedLines) {
+          await client.query(
+            `UPDATE pedido_servico SET valor_orcado = $1, valor_cobrado = $2 WHERE id = $3`,
+            [line.valorOrcado, line.value, line.id],
+          );
+        }
+        await client.query('UPDATE pedido SET valor_total = $1 WHERE id = $2', [newTotal, id]);
+      }
 
       for (const used of dto.insumos) {
         const [stock] = (

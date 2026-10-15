@@ -22,9 +22,11 @@ e isola as dependências. Os comandos abaixo instalam e executam cada pacote.
    por fim `checkout`, `despesa_interna` e `nota_fiscal`. A tabela
    `schema_migrations` registra a versão aplicada.
    Reexecute esse comando após atualizar o projeto: novas migrações pendentes,
-   incluindo a coluna `funcionario.cargo`, serão aplicadas. Funcionários
-   existentes recebem `Atendente` por padrão; promova a conta proprietária
-   existente para `Dono` antes de usar a gestão de cargos, por exemplo:
+   incluindo `003_order_strategies`, serão aplicadas. Essa migração registra o
+   tipo de processamento em `pedido` e o tipo de cobrança/orçamento em
+   `pedido_servico`. Funcionários existentes recebem `Atendente` por padrão;
+   promova a conta proprietária existente para `Dono` antes de usar a gestão de
+   cargos, por exemplo:
 
    ```sql
    UPDATE funcionario SET cargo = 'Dono' WHERE email = 'email-do-proprietario';
@@ -105,13 +107,16 @@ recebam o estado persistido do servidor.
 
 Ao gerar a OS, `IniciarAtendimento.gerarOS()` monta um `Pedido` com o cliente,
 os serviços e detalhes dos produtos. O domínio envia `POST /api/pedidos` com
-IDs e itens; não confia no ID ou no total temporário do navegador. O DTO
+IDs, a modalidade de cobrança escolhida por serviço e o tipo de processamento;
+não confia no ID ou no total temporário do navegador. O DTO
 `CriarPedidoDto` valida o corpo. `ApiController.criarPedido()` confirma que
-cliente e serviços existem e estão ativos, calcula o total/prazo e, em uma só
-transação, grava:
+cliente e serviços existem e estão ativos, calcula o total/prazo no servidor e,
+em uma só transação, grava:
 
-- `pedido`: cliente, serviço principal, status, etapa e totais;
-- `pedido_servico`: cada serviço associado à ordem;
+- `pedido`: cliente, serviço principal, estratégia de processamento, status,
+  etapa e totais;
+- `pedido_servico`: cada serviço associado à ordem, sua estratégia de cobrança
+  e o valor atualmente cobrado;
 - `pedido_item`: modelo, marca, série, condição, observação e foto de cada item;
 - `log`: evento de abertura, incluindo funcionário e horário.
 
@@ -128,7 +133,10 @@ exibe a OS persistida. A consulta também carrega `pedido_insumo`, `checkout` e
 - **Laudo e progresso:** `DescricaoTecnicaModal` chama
   `salvarDescricaoTecnica()`; o hook envia `POST /api/pedidos/:id/laudo`.
   Numa transação, o controller baixa cada quantidade em `estoque`, registra o
-  consumo em `pedido_insumo`, atualiza laudo/etapa e grava o histórico.
+  consumo em `pedido_insumo`, atualiza laudo/etapa e grava o histórico. Para
+  serviços com cobrança por orçamento, o técnico também pode informar ou
+  limpar o valor nessa tela. O total é recalculado no servidor; a alteração é
+  recusada se deixar o total abaixo do que já foi pago.
 - **Cancelamento:** a tela/modal recolhe o motivo e envia
   `POST /api/pedidos/:id/cancelamento`. O servidor atualiza a etapa e
   `motivo_cancelamento` em `pedido` e grava o evento no `log`. Não há exclusão
@@ -165,11 +173,18 @@ transação da migração. Erros de validação e regra retornam ao hook, que os
 converte em mensagem para a tela; falha numa transação reverte as gravações
 daquela operação.
 
-O backend calcula o total de criação usando os valores persistidos em `servico`.
-As estratégias de cobrança do frontend não são atualmente enviadas nem
-persistidas pela API; portanto, regras diferentes do preço cadastrado precisam
-ser integradas ao contrato/backend antes de serem usadas como valor oficial.
-Da mesma forma, `src/services/ProcessarPedido.ts` e suas estratégias são
-utilitários de domínio: os endpoints CRUD descritos acima ainda não os chamam.
-O status de processamento (`aprovado`, `urgente` ou `garantia`) é diferente da
-etapa operacional do Kanban (`aberto`, `manutencao`, etc.).
+### Estratégias operacionais
+
+Na criação da OS, a tabela de serviços permite escolher preço fixo, hora
+técnica ou orçamento por linha. O preço fixo usa o valor cadastrado; hora
+técnica multiplica esse valor pelas horas estimadas; orçamento começa com o
+valor cadastrado e pode ser ajustado pelo técnico no laudo. O servidor repete
+os cálculos e grava a modalidade em `pedido_servico`, para que o total oficial
+não dependa do navegador.
+
+Também na criação, o atendente escolhe processamento comum, urgente ou
+garantia. `usePedidoDomain` chama `ProcessarPedido` com a estratégia escolhida;
+o servidor persiste o tipo em `pedido.tipo_processamento` e o status
+correspondente (`aprovado`, `urgente` ou `garantia`). Esse status de
+processamento é diferente da etapa operacional do Kanban (`aberto`,
+`manutencao`, etc.).

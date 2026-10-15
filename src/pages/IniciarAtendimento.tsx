@@ -6,7 +6,11 @@ import { useApp } from "../hooks/useApp";
 import { Cliente } from "../models/Cliente";
 import { ItemPedido } from "../models/ItemPedido";
 import { Pedido } from "../models/Pedido";
+import { Servico } from "../models/Servico";
 import { moeda } from "../utils/formatadores";
+import type { TipoCobranca } from "../services/EstrategiaCobranca";
+import type { TipoProcessamentoPedido } from "../services/EstrategiaProcessamentoPedido";
+import { criarEstrategiaCobranca } from "../services/criarEstrategiaCobranca";
 
 //parte mais complexa da manipulação de pedido pq tem o fluxo de estados 
 
@@ -22,6 +26,10 @@ function IniciarAtendimento() {
 
     const [buscaServico, setBuscaServico] = useState("");
     const [selecionados, setSelecionados] = useState<number[]>([]);
+    // Guarda a modalidade por ID para cada serviço que o usuário selecionar.
+    const [tiposCobranca, setTiposCobranca] = useState<Record<number, TipoCobranca>>({});
+    // A ordem começa como comum e pode ser alterada antes de salvar.
+    const [tipoProcessamento, setTipoProcessamento] = useState<TipoProcessamentoPedido>("comum");
     const [detalhes, setDetalhes] = useState(DETALHES_VAZIOS);
     const [itens, setItens] = useState<ItemPedido[]>([]);
 
@@ -89,21 +97,32 @@ function IniciarAtendimento() {
             return;
         }
 
-        // Cada serviço selecionado vira um ItemPedido com os dados do produto informado.
+        // Cada linha recebe sua própria estratégia; assim dois serviços da mesma OS
+        // podem ser cobrados de formas diferentes.
         const novos = servicos
             .filter((servico) => selecionados.includes(servico.id))
-            .map(
-                (servico) =>
-                    new ItemPedido(
-                        servico,
+            .map((servico) => {
+                // O serviço original do catálogo não é alterado; cria-se uma cópia
+                // para guardar a regra escolhida especificamente para esta OS.
+                const servicoComCobranca = new Servico(
+                        servico.id,
+                        servico.nome,
+                        servico.valor,
+                        servico.horasEstimadas,
+                        servico.descricao,
+                        criarEstrategiaCobranca(tiposCobranca[servico.id] ?? "preco_fixo")
+                    );
+                    if (!servico.status) servicoComCobranca.desativar();
+                    return new ItemPedido(
+                        servicoComCobranca,
                         detalhes.modelo.trim(),
                         detalhes.marca.trim(),
                         detalhes.numeroSerie.trim(),
                         detalhes.estado.trim(),
                         detalhes.observacao.trim(),
                         detalhes.foto //guarda apenas o nome do arquivo de foto
-                    )
-            );
+                    );
+            });
 
         setItens([...itens, ...novos]);
         setSelecionados([]);
@@ -118,7 +137,7 @@ function IniciarAtendimento() {
         // O ID temporário 0 não é persistido: o backend gera o ID real no MySQL.
         const pedido = new Pedido(0, cliente, itens[0].servico, itens);
         try {
-            setPedidoCriado(await criarPedido(pedido));
+            setPedidoCriado(await criarPedido(pedido, tipoProcessamento));
         } catch (error) {
             alert(error instanceof Error ? error.message : "Não foi possível criar o pedido.");
         }
@@ -130,6 +149,8 @@ function IniciarAtendimento() {
         setIniciado(false); //estado false de iniciado ao reiniciar
         setBuscaServico("");
         setSelecionados([]);
+        setTiposCobranca({});
+        setTipoProcessamento("comum");
         setDetalhes(DETALHES_VAZIOS);
         setItens([]);
         setPedidoCriado(null);
@@ -251,17 +272,22 @@ function IniciarAtendimento() {
                                     <th>Descrição</th>
                                     <th>Valor</th>
                                     <th>Prazo</th>
+                                    <th>Regra de cobrança</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {servicosAtivos.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="vazio">
+                                        <td colSpan={6} className="vazio">
                                             Nenhum serviço disponível. Cadastre em Dashboards e Gestão &gt; Gerência de Serviços.
                                         </td>
                                     </tr>
                                 )}
-                                {servicosAtivos.map((servico) => (//selecao de serviços registrados
+                                {servicosAtivos.map((servico) => {
+                                    const tipo = tiposCobranca[servico.id] ?? "preco_fixo";
+                                    // Mostra uma estimativa calculada pela mesma estratégia usada no modelo.
+                                    const valorPrevisto = criarEstrategiaCobranca(tipo).calcular(servico);
+                                    return (
                                     <tr key={servico.id}>
                                         <td>
                                             <input
@@ -272,12 +298,55 @@ function IniciarAtendimento() {
                                         </td>
                                         <td>{servico.nome}</td>
                                         <td>{servico.descricao}</td>
-                                        <td>{moeda(servico.valor)}</td>
+                                        <td>
+                                            {tipo === "hora_tecnica"
+                                                ? `${moeda(servico.valor)}/h (${moeda(valorPrevisto)} estimado)`
+                                                : tipo === "orcamento"
+                                                  ? `${moeda(servico.valor)} (estimativa)`
+                                                  : moeda(valorPrevisto)}
+                                        </td>
                                         <td>{servico.horasEstimadas}h</td>
+                                        <td>
+                                            <select
+                                                value={tipo}
+                                                onChange={(e) =>
+                                                    // A escolha é lembrada por ID até adicionar o serviço.
+                                                    setTiposCobranca({
+                                                        ...tiposCobranca,
+                                                        [servico.id]: e.target.value as TipoCobranca
+                                                    })
+                                                }
+                                            >
+                                                <option value="preco_fixo">Preço fixo</option>
+                                                <option value="hora_tecnica">Hora técnica</option>
+                                                <option value="orcamento">Orçamento técnico</option>
+                                            </select>
+                                        </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
+                    </div>
+                </section>
+
+                <section className="painel">
+                    <div className="painel-corpo">
+                        <div className="campo">
+                            <label htmlFor="tipo-processamento">Tipo de processamento</label>
+                            <select
+                                id="tipo-processamento"
+                                value={tipoProcessamento}
+                                onChange={(e) =>
+                                    // A seleção será passada ao ProcessarPedido e ao endpoint de criação.
+                                    setTipoProcessamento(e.target.value as TipoProcessamentoPedido)
+                                }
+                            >
+                                <option value="comum">Comum</option>
+                                <option value="urgente">Urgente</option>
+                                <option value="garantia">Garantia</option>
+                            </select>
+                        </div>
                     </div>
                 </section>
 
