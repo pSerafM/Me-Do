@@ -36,9 +36,10 @@ function IniciarAtendimento() {
                 .includes(buscaServico.trim().toLowerCase())
         );
 
+    // Este total é uma prévia local; ao salvar, a API recalcula usando os serviços do banco.
     const total = itens.reduce((soma, item) => soma + item.valorCobrado(), 0);
 
-    //uma das formas de iniciar atendimento é buscar por um cliente já cadastrado
+    // Primeiro localiza o cliente já carregado pelo domínio ou abre o cadastro de um novo.
     function buscarCliente() { 
         const termo = busca.trim().toLowerCase();
 
@@ -63,6 +64,7 @@ function IniciarAtendimento() {
     }
 
     async function aoCadastrarCliente(novo: Cliente): Promise<string | null> {
+        // Só associa o cliente ao atendimento depois que o cadastro foi aceito pela API.
         const result = await cadastrarCliente(novo);
         if (typeof result === "string") return result;
         setCliente(result);
@@ -87,6 +89,7 @@ function IniciarAtendimento() {
             return;
         }
 
+        // Cada serviço selecionado vira um ItemPedido com os dados do produto informado.
         const novos = servicos
             .filter((servico) => selecionados.includes(servico.id))
             .map(
@@ -112,6 +115,7 @@ function IniciarAtendimento() {
             return;
         }
 
+        // O ID temporário 0 não é persistido: o backend gera o ID real no MySQL.
         const pedido = new Pedido(0, cliente, itens[0].servico, itens);
         try {
             setPedidoCriado(await criarPedido(pedido));
@@ -140,6 +144,7 @@ function IniciarAtendimento() {
             return;
         }
 
+        // A entrada é registrada depois que criarPedido devolveu o ID persistido.
         const erro = await registrarPagamento(pedidoCriado.id, valor, forma);
 
         if (erro) {

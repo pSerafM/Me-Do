@@ -469,6 +469,7 @@ export class ApiController {
   @Get('pedidos')
   @RequirePermission(PERMISSOES.pedidosConsultar)
   listarPedidos(@Req() request: AuthenticatedRequest) {
+    // Reúne a OS e suas relações em uma resposta para o Kanban, checkout e histórico.
     return this.db.query(
       `SELECT
          p.id,
@@ -528,6 +529,7 @@ export class ApiController {
   @Post('pedidos')
   @RequirePermission(PERMISSOES.pedidosCriar)
   async criarPedido(@Body() dto: CriarPedidoDto, @Req() request: AuthenticatedRequest) {
+    // Uma transação garante que pedido, serviços, itens e log sejam gravados juntos ou revertidos juntos.
     return this.db.transaction(async (client) => {
       const serviceIds = dto.itens.length ? dto.itens.map((item) => item.servicoId) : [dto.servicoId];
       const serviceRows = await client.query<RowDataPacket & {
@@ -615,6 +617,7 @@ export class ApiController {
     @Body() dto: MoverEtapaDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Trava a linha do pedido para validar e avançar a etapa sem conflito com outra operação.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { etapa: string; laudoTecnico: string }>(
@@ -643,6 +646,7 @@ export class ApiController {
     @Body() dto: SalvarLaudoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Laudo, baixa de estoque, consumo de insumos e histórico formam uma única operação atômica.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { etapa: string }>('SELECT etapa FROM pedido WHERE id = $1 FOR UPDATE', [id])
@@ -709,6 +713,7 @@ export class ApiController {
     @Body() dto: CancelarPedidoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Atualiza a etapa/motivo e registra o evento no log dentro da mesma transação.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { etapa: string }>('SELECT etapa FROM pedido WHERE id = $1 FOR UPDATE', [id])
@@ -733,6 +738,7 @@ export class ApiController {
     @Body() dto: PagamentoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Confere saldo com a linha bloqueada antes de criar o lançamento do checkout.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { valorTotal: string; etapa: string }>(
@@ -779,6 +785,7 @@ export class ApiController {
     @Body() dto: FinalizarPedidoDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    // Recebe eventual saldo, marca retirada/encerramento, grava log e cria nota fiscal atomicamente.
     return this.db.transaction(async (client) => {
       const [order] = (
         await client.query<RowDataPacket & { valorTotal: string; etapa: string; status: string }>(
@@ -922,6 +929,7 @@ async function addLog(
   title: string,
   description: string,
 ): Promise<void> {
+  // Centraliza o formato do histórico; chamadas dentro da transação acompanham a operação principal.
   await client.query(
     `INSERT INTO \`log\` (pedido_id, funcionario_id, funcionario_nome, titulo, descricao)
      VALUES ($1, $2, $3, $4, $5)`,

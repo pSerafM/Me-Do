@@ -1,7 +1,6 @@
 import type { Servico } from "./Servico";
 
-// Um serviço dentro do atendimento, com os dados do produto que vai recebê-lo
-// (tela "Detalhes do Serviço" / "Resumo").
+// Item de serviço da OS: associa um serviço aos dados do produto que será reparado.
 export class ItemPedido {
     servico: Servico;
     modelo: string;
@@ -30,6 +29,7 @@ export class ItemPedido {
     }
 
     valorCobrado(): number {
+        // Delega o preço à estratégia configurada no serviço.
         return this.servico.calcularValor();
     }
 

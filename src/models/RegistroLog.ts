@@ -1,4 +1,4 @@
-// Representa uma linha do modal de histórico de alterações do pedido/OS (data, funcionário, título e descrição).
+// Evento imutável do histórico da OS: data, funcionário responsável, título e descrição.
 export class RegistroLog {
     data: Date;
     funcionario: string;

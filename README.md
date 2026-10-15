@@ -70,3 +70,106 @@ notas fiscais e cancelamento de pedidos estão disponíveis a todos os cargos.
 As operações de pedidos gravam pedido, serviços, insumos, checkout, nota fiscal
 e log em transações MySQL. O frontend carrega os dados da API por domínio e
 atualiza as coleções após gravações.
+
+## Fluxo de CRUD de pedidos (OS)
+
+O frontend não grava dados no banco diretamente. A tela chama o contexto React,
+o hook do domínio envia uma requisição HTTP para o NestJS e o controller grava
+no MySQL. Após alterações, o hook recarrega a lista para que todas as telas
+recebam o estado persistido do servidor.
+
+### 1. Onde os dados passam
+
+1. **Telas e modais:** `src/pages/IniciarAtendimento.tsx` cria o atendimento;
+   `src/pages/OrdensServico.tsx` movimenta/cancela ordens; e
+   `src/pages/Checkout.tsx` finaliza a retirada. Os modais de descrição técnica
+   e pagamento coletam os dados necessários.
+2. **Modelo de domínio:** `src/models/Pedido.ts` representa uma OS e calcula
+   itens, total, pagamentos e saldo. `src/models/ItemPedido.ts` associa os dados
+   do produto a um serviço e delega o valor ao serviço.
+3. **Contrato e composição React:** `src/context/AppContext.ts` tipa as
+   operações públicas. `src/context/AppProvider.tsx` compõe os hooks e
+   disponibiliza as funções às telas.
+4. **Lógica HTTP do domínio:** `src/context/domains/usePedidoDomain.ts`
+   transforma ações da tela em chamadas aos endpoints. `src/api/client.ts`
+   centraliza URL, JSON, cookie de sessão e erros.
+5. **Servidor:** `backend/src/api/api.dto.ts` valida os dados recebidos.
+   `backend/src/api/api.controller.ts` verifica regras, permissões e executa
+   as consultas/transações.
+6. **Banco e retorno:** `backend/src/database/migrations/001_initial.sql`
+   define as tabelas e relações. O endpoint `GET /api/pedidos` devolve o
+   agregado da OS e `src/api/modelsFromApi.ts`, em `reviverPedido`, converte o
+   JSON em objetos e datas que a interface usa.
+
+### 2. Criar e consultar
+
+Ao gerar a OS, `IniciarAtendimento.gerarOS()` monta um `Pedido` com o cliente,
+os serviços e detalhes dos produtos. O domínio envia `POST /api/pedidos` com
+IDs e itens; não confia no ID ou no total temporário do navegador. O DTO
+`CriarPedidoDto` valida o corpo. `ApiController.criarPedido()` confirma que
+cliente e serviços existem e estão ativos, calcula o total/prazo e, em uma só
+transação, grava:
+
+- `pedido`: cliente, serviço principal, status, etapa e totais;
+- `pedido_servico`: cada serviço associado à ordem;
+- `pedido_item`: modelo, marca, série, condição, observação e foto de cada item;
+- `log`: evento de abertura, incluindo funcionário e horário.
+
+O servidor devolve o ID gerado pelo MySQL. O hook chama `refresh()`, que faz
+`GET /api/pedidos`; `reviverPedido()` reconstrói o objeto completo, e a tela
+exibe a OS persistida. A consulta também carrega `pedido_insumo`, `checkout` e
+`log` para o histórico e o cálculo do saldo.
+
+### 3. Atualizar durante o reparo
+
+- **Etapa do Kanban:** `OrdensServico` chama `moverEtapa()` no hook; este envia
+  `PATCH /api/pedidos/:id/etapa`. O controller bloqueia a linha, valida a
+  transição e o laudo necessário, atualiza `pedido.etapa` e inclui um `log`.
+- **Laudo e progresso:** `DescricaoTecnicaModal` chama
+  `salvarDescricaoTecnica()`; o hook envia `POST /api/pedidos/:id/laudo`.
+  Numa transação, o controller baixa cada quantidade em `estoque`, registra o
+  consumo em `pedido_insumo`, atualiza laudo/etapa e grava o histórico.
+- **Cancelamento:** a tela/modal recolhe o motivo e envia
+  `POST /api/pedidos/:id/cancelamento`. O servidor atualiza a etapa e
+  `motivo_cancelamento` em `pedido` e grava o evento no `log`. Não há exclusão
+  física do pedido: cancelar é a forma de encerrá-lo sem apagar seu histórico.
+
+Após cada operação bem-sucedida, o hook recarrega `GET /api/pedidos`; após
+salvar insumos, também atualiza o domínio do estoque.
+
+### 4. Pagamentos e retirada
+
+O modal de pagamento entrega valor e forma escolhidos ao chamador:
+
+- **Entrada/parcial:** `registrarPagamento()` envia
+  `POST /api/pedidos/:id/pagamentos`. O servidor bloqueia o pedido, calcula o
+  saldo com os lançamentos existentes, rejeita excesso e insere uma linha em
+  `checkout` e outra no `log`.
+- **Pagamento na retirada:** `Checkout` chama `finalizarPedido()`, que envia
+  `POST /api/pedidos/:id/finalizacao`. O servidor recebe o saldo restante, se
+  houver, grava seu pagamento, marca o pedido como retirado/encerrado,
+  registra o log e cria a nota em `nota_fiscal`, tudo na mesma transação.
+  Pedido cancelado pode ser encerrado no checkout, mas não marcado como retirado.
+
+O hook recarrega pedidos e notas fiscais depois da finalização. O saldo mostrado
+na interface é `Pedido.saldo()`: total da OS menos a soma dos pagamentos em
+`Pedido.pagamentos`.
+
+### 5. Como ler ou depurar o fluxo
+
+Para acompanhar uma ação, comece pelo `onClick`/`onSubmit` da tela, siga o nome
+da função no `AppContext`, localize sua implementação em
+`usePedidoDomain.ts`, confirme a URL HTTP em `apiRequest()` e então procure a
+rota correspondente no `ApiController`. Por fim, confira as tabelas usadas na
+transação da migração. Erros de validação e regra retornam ao hook, que os
+converte em mensagem para a tela; falha numa transação reverte as gravações
+daquela operação.
+
+O backend calcula o total de criação usando os valores persistidos em `servico`.
+As estratégias de cobrança do frontend não são atualmente enviadas nem
+persistidas pela API; portanto, regras diferentes do preço cadastrado precisam
+ser integradas ao contrato/backend antes de serem usadas como valor oficial.
+Da mesma forma, `src/services/ProcessarPedido.ts` e suas estratégias são
+utilitários de domínio: os endpoints CRUD descritos acima ainda não os chamam.
+O status de processamento (`aprovado`, `urgente` ou `garantia`) é diferente da
+etapa operacional do Kanban (`aberto`, `manutencao`, etc.).

@@ -62,6 +62,7 @@ export interface AppContextData {
         observacao: string
     ) => Promise<string | null>;
 
+    // Operações de pedido disponibilizadas às páginas, sem expor diretamente o cliente HTTP.
     criarPedido: (pedido: Pedido) => Promise<Pedido>;
     moverEtapa: (idPedido: number, direcao: 1 | -1) => Promise<string | null>;
     salvarDescricaoTecnica: (

@@ -32,6 +32,7 @@ function PagamentoModal({
             return;
         }
 
+        // Delega a persistência ao chamador, que escolhe entre entrada ou checkout final.
         onConfirmar(numero, forma);
     }
 

@@ -65,6 +65,7 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
         setNovos(novos.map((n) => (n.idInsumo === idInsumo ? { ...n, quantidade } : n)));
     }
 
+    // Envia laudo, insumos e progresso em uma operação; o hook atualiza pedido e estoque ao concluir.
     async function salvar() {
         const erro = await salvarDescricaoTecnica(pedido.id, laudo, novos, progresso);
 
@@ -76,6 +77,7 @@ function DescricaoTecnicaModal({ pedido, onFechar }: DescricaoTecnicaModalProps)
         onFechar();
     }
 
+    // O modal só recolhe o motivo; o servidor faz a mudança de etapa e grava o log.
     async function confirmarCancelamento() {
         const erro = await cancelarPedido(pedido.id, motivo);
 

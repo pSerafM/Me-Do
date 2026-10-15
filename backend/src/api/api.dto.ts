@@ -81,6 +81,7 @@ export class AtualizarFuncionarioDto {
 }
 
 export class OrderItemDto {
+  // Campos aceitos para cada serviço/produto associado a uma ordem de serviço.
   @IsInt() @Min(1) servicoId!: number;
   @IsOptional() @IsString() modelo?: string;
   @IsOptional() @IsString() marca?: string;
@@ -91,6 +92,7 @@ export class OrderItemDto {
 }
 
 export class CriarPedidoDto {
+  // O cliente e o serviço principal devem existir; itens detalha os serviços associados.
   @IsInt() @Min(1) clienteId!: number;
   @IsInt() @Min(1) servicoId!: number;
   @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto)
@@ -107,6 +109,7 @@ export class InsumoUsadoDto {
 }
 
 export class SalvarLaudoDto {
+  // O técnico envia o laudo, os insumos consumidos e, opcionalmente, o próximo progresso.
   @IsString() @MinLength(1) laudo!: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => InsumoUsadoDto)
   insumos!: InsumoUsadoDto[];
@@ -116,16 +119,19 @@ export class SalvarLaudoDto {
 }
 
 export class CancelarPedidoDto {
+  // O cancelamento exige uma justificativa que também será registrada no histórico.
   @IsString() @MinLength(1) motivo!: string;
 }
 
 export class PagamentoDto {
+  // Cada pagamento é um lançamento independente ligado ao pedido.
   @IsNumber() @Min(0.01) valor!: number;
   @IsIn(['pix', 'credito', 'debito', 'dinheiro'])
   forma!: 'pix' | 'credito' | 'debito' | 'dinheiro';
 }
 
 export class FinalizarPedidoDto {
+  // A forma só é obrigatória se ainda houver saldo a pagar na retirada.
   @IsOptional()
   @IsIn(['pix', 'credito', 'debito', 'dinheiro'])
   forma?: 'pix' | 'credito' | 'debito' | 'dinheiro';

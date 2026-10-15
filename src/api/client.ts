@@ -14,6 +14,7 @@ export async function apiRequest<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
+    // Todas as chamadas usam a mesma base da API e enviam o cookie de sessão automaticamente.
     const response = await fetch(`${API_BASE}${path}`, {
         ...options,
         credentials: "include",

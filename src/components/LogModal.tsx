@@ -3,6 +3,7 @@ import type { Pedido } from "../models/Pedido";
 import { dataHoraBR } from "../utils/formatadores";
 
 function LogModal({ pedido, onFechar }: { pedido: Pedido; onFechar: () => void }) {
+    // O histórico já veio junto com GET /pedidos e foi convertido por reviverPedido.
     return (
         <Modal
             titulo={`Log da OS #${pedido.id}`}

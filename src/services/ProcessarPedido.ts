@@ -2,7 +2,7 @@ import { Pedido } from "../models/Pedido";
 import { ProcessarPedidoComum } from "./ProcessarPedidoComum";
 import type { EstrategiaProcessamentoPedido } from "./EstrategiaProcessamentoPedido";
 
-// Este contexto cuida do que é igual para todos os processamentos.
+// Contexto Strategy: centraliza o que é igual para todos os processamentos da OS.
 export class ProcessarPedido {
     private estrategia: EstrategiaProcessamentoPedido;
 

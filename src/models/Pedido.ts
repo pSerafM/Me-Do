@@ -46,6 +46,7 @@ export class Pedido {
     motivoCancelamento: string = "";
     encerrado: boolean = false;
 
+    // Modelo de domínio usado pela interface; a API é a fonte persistente dos pedidos.
     constructor(
         id: number,
         cliente: Cliente,
@@ -63,7 +64,7 @@ export class Pedido {
         );
     }
 
-    // Soma dos itens do atendimento. Sem itens, usa o serviço único.
+    // Soma o preço calculado por cada serviço; sem itens, usa o serviço principal.
     calcularTotal(): number {
         if (this.itens.length === 0) {
             return this.servico.calcularValor();
@@ -87,6 +88,7 @@ export class Pedido {
     }
 
     valorPago(): number {
+        // Pagamentos são eventos separados; total pago é a soma de todos eles.
         return this.pagamentos.reduce(
             (total, pagamento) => total + pagamento.valorPago,
             0
@@ -94,6 +96,7 @@ export class Pedido {
     }
 
     saldo(): number {
+        // Evita apresentar saldo negativo quando o total já foi pago.
         return Math.max(this.valorTotal - this.valorPago(), 0);
     }
 

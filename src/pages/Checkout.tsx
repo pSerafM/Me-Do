@@ -9,6 +9,7 @@ function Checkout() {
     const [busca, setBusca] = useState("");
     const [idPagando, setIdPagando] = useState<number | null>(null);
 
+    // Mostra pedidos prontos para retirada e cancelados ainda não encerrados no checkout.
     const lista = pedidos
         .filter((p) => p.etapa === "pronto_retirada" || (p.etapa === "cancelado" && !p.encerrado))
         .filter((p) => !busca.trim() || String(p.id) === busca.trim());
@@ -23,6 +24,7 @@ function Checkout() {
         return pedido.saldo() > 0.005 ? "Entrada" : "Pago";
     }
 
+    // A API valida o saldo, registra eventual pagamento final e encerra a OS.
     async function finalizar(idPedido: number, forma?: FormaPagamento) {
         const erro = await finalizarPedido(idPedido, forma);
 

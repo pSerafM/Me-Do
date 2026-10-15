@@ -1,4 +1,5 @@
 export class Checkout {
+    // Um pedido pode ter vários registros de pagamento, por exemplo entrada e saldo final.
     idPedido: number;
     idFuncionario: number;
     valorPago: number;
@@ -20,6 +21,7 @@ export class Checkout {
     }
 
     registrarPagamento(): void {
+        // Validação local básica; o endpoint também valida valor e saldo antes de persistir.
         if (this.valorPago <= 0) {
             throw new Error("O valor do pagamento deve ser maior que zero.");
         }

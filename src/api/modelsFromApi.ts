@@ -21,6 +21,7 @@ export interface ApiServico {
 }
 
 export interface ApiPedido {
+    // Formato retornado pelo endpoint; contém o pedido e coleções carregadas por relações SQL.
     id: number;
     cliente: { id: number; nome: string; cpfCnpj: string; telefone: string };
     servico: ApiServico;
@@ -178,6 +179,7 @@ export function reviverNota(row: {
 }
 
 export function reviverPedido(row: ApiPedido): Pedido {
+    // Converte o JSON da API em classes de domínio e datas nativas usadas pelas telas.
     const cliente = reviverCliente(row.cliente);
     const servico = reviverServico(row.servico);
     const itens = row.itens.map((item) =>
@@ -201,6 +203,7 @@ export function reviverPedido(row: ApiPedido): Pedido {
     pedido.laudoTecnico = row.laudoTecnico;
     pedido.motivoCancelamento = row.motivoCancelamento;
     pedido.encerrado = row.encerrado;
+    // Restaura relacionamentos filhos para que saldo, histórico e modais usem modelos tipados.
     pedido.insumosUsados = row.insumosUsados.map(
         (item) =>
             new ItemInsumo(
