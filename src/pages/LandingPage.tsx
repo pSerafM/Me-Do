@@ -45,7 +45,6 @@ function LandingPage() {
                         FIDELIZE SEUS CLIENTES.
                     </h1>
                 </div>
-
                 <form className="login-card" onSubmit={entrar}>
                     <h2>Login</h2>
 
