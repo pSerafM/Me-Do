@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Funcionario } from "../models/Funcionario";
+import { CARGOS } from "../auth/permissions";
 import { deInputData, paraInputData } from "../utils/formatadores";
 
 const UFS = [
@@ -14,15 +15,22 @@ interface FuncionarioFormProps {
     // devolve a mensagem de erro, ou null se salvou
     onSalvar: (dados: Funcionario, senha?: string) => string | null | Promise<string | null>;
     onExcluir?: () => void;
+    podeAtribuirCargo?: boolean;
 }
 
-function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: FuncionarioFormProps) {
+function FuncionarioForm({
+    funcionario,
+    modo,
+    onSalvar,
+    onExcluir,
+    podeAtribuirCargo = false
+}: FuncionarioFormProps) {
     const [editando, setEditando] = useState(modo === "cadastro");
 
     const [nome, setNome] = useState(funcionario?.nome ?? "");
     const [cpf, setCpf] = useState(funcionario?.cpf ?? "");
     const [nascimento, setNascimento] = useState(
-        funcionario ? paraInputData(funcionario.dataDeNascimento) : ""
+        funcionario?.dataDeNascimento ? paraInputData(funcionario.dataDeNascimento) : ""
     );
     const [genero, setGenero] = useState(funcionario?.genero ?? "");
     const [email, setEmail] = useState(funcionario?.email ?? "");
@@ -33,6 +41,7 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
     const [numero, setNumero] = useState(funcionario ? String(funcionario.numero) : "");
     const [complemento, setComplemento] = useState(funcionario?.complemento ?? "");
     const [senha, setSenha] = useState("");
+    const [cargo, setCargo] = useState(funcionario?.cargo ?? "Atendente");
 
     async function salvar(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -56,7 +65,8 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
             estado,
             complemento.trim(),
             funcionario?.status ?? "ativo",
-            Number(numero) || 0
+            Number(numero) || 0,
+            cargo
         );
 
         if (modo === "cadastro" && senha.length < 12) {
@@ -80,7 +90,7 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
         // volta para os valores originais
         setNome(funcionario?.nome ?? "");
         setCpf(funcionario?.cpf ?? "");
-        setNascimento(funcionario ? paraInputData(funcionario.dataDeNascimento) : "");
+        setNascimento(funcionario?.dataDeNascimento ? paraInputData(funcionario.dataDeNascimento) : "");
         setGenero(funcionario?.genero ?? "");
         setEmail(funcionario?.email ?? "");
         setCep(funcionario?.cep ?? "");
@@ -89,6 +99,7 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
         setRua(funcionario?.rua ?? "");
         setNumero(funcionario ? String(funcionario.numero) : "");
         setComplemento(funcionario?.complemento ?? "");
+        setCargo(funcionario?.cargo ?? "Atendente");
         setEditando(false);
     }
 
@@ -144,6 +155,28 @@ function FuncionarioForm({ funcionario, modo, onSalvar, onExcluir }: Funcionario
                         />
                     </div>
                 )}
+
+                <div className="campo c-metade">
+                    <label htmlFor="cargo-funcionario">Cargo:</label>
+                    {podeAtribuirCargo ? (
+                        <select
+                            id="cargo-funcionario"
+                            value={cargo}
+                            onChange={(event) => {
+                                const selected = CARGOS.find((option) => option === event.target.value);
+                                if (selected) setCargo(selected);
+                            }}
+                        >
+                            {CARGOS.map((opcao) => (
+                                <option key={opcao} value={opcao}>
+                                    {opcao}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <input id="cargo-funcionario" value={cargo} readOnly />
+                    )}
+                </div>
 
                 <div className="campo c-quarto">
                     <label>CEP:</label>

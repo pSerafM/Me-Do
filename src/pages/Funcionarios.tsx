@@ -4,7 +4,7 @@ import FuncionarioForm from "../components/FuncionarioForm";
 import { useApp } from "../hooks/useApp";
 
 function Funcionarios() {
-    const { funcionarios, atualizarFuncionario, excluirFuncionario } = useApp();
+    const { funcionarios, atualizarFuncionario, excluirFuncionario, usuario } = useApp();
     const navigate = useNavigate();
     const [idSelecionado, setIdSelecionado] = useState<number | null>(null);
 
@@ -49,6 +49,7 @@ function Funcionarios() {
                         key={selecionado.idFuncionario}
                         modo="visualizacao"
                         funcionario={selecionado}
+                        podeAtribuirCargo={usuario?.cargo === "Dono"}
                         onSalvar={(dados) =>
                             atualizarFuncionario(selecionado.idFuncionario, {
                                 nome: dados.nome,
@@ -61,7 +62,8 @@ function Funcionarios() {
                                 cidade: dados.cidade,
                                 estado: dados.estado,
                                 complemento: dados.complemento,
-                                numero: dados.numero
+                                numero: dados.numero,
+                                ...(usuario?.cargo === "Dono" ? { cargo: dados.cargo } : {})
                             })
                         }
                         onExcluir={async () => {

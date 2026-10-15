@@ -72,8 +72,8 @@ try {
     }
 
     await connection.execute(
-      `INSERT INTO funcionario (nome, cpf, email, senha_hash)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO funcionario (nome, cpf, email, senha_hash, cargo)
+       VALUES (?, ?, ?, ?, 'Dono')`,
       [name, cpf, email, await hash(password, 12)],
     );
     await connection.commit();
