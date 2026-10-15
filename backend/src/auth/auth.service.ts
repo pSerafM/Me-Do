@@ -32,6 +32,7 @@ export class AuthService {
   ) {}
 
   async login(email: string, password: string): Promise<AuthenticatedUser> {
+    // Normaliza espaços e compara e-mail sem diferenciar maiúsculas/minúsculas.
     const [employee] = await this.db.query<EmployeeRow>(
       `SELECT id_funcionario AS \`idFuncionario\`, nome, email,
               senha_hash AS \`senhaHash\`, status, cargo
@@ -39,6 +40,7 @@ export class AuthService {
       [email.trim()],
     );
 
+    // Não revela se falhou o e-mail, a senha ou o estado da conta; compara com o hash armazenado.
     if (!employee || employee.status !== 'ativo' || !(await compare(password, employee.senhaHash))) {
       throw new UnauthorizedException('E-mail ou senha inválidos.');
     }
@@ -47,6 +49,7 @@ export class AuthService {
   }
 
   async bootstrap(data: BootstrapDto): Promise<AuthenticatedUser> {
+    // O token de bootstrap é configuração do servidor, nunca um valor confiado ao navegador.
     const expected = this.config.get<string>('BOOTSTRAP_TOKEN');
     if (!expected) {
       throw new InternalServerErrorException('BOOTSTRAP_TOKEN não está configurado no backend.');
@@ -54,6 +57,7 @@ export class AuthService {
 
     const providedBuffer = Buffer.from(data.token);
     const expectedBuffer = Buffer.from(expected);
+    // A comparação em tempo constante evita vazar informação pelo tempo de resposta do segredo.
     if (
       providedBuffer.length !== expectedBuffer.length ||
       !timingSafeEqual(providedBuffer, expectedBuffer)
@@ -62,6 +66,7 @@ export class AuthService {
     }
 
     const senhaHash = await hash(data.senha, 12);
+    // O lock do banco evita dois primeiros cadastros simultâneos em instâncias diferentes da API.
     return this.db.transaction(async (client) => {
       const [{ acquired }] = (
         await client.query<RowDataPacket & { acquired: number }>(
@@ -119,6 +124,7 @@ export class AuthService {
   }
 
   async issueToken(user: AuthenticatedUser): Promise<string> {
+    // O JWT identifica o funcionário; permissões atuais não são congeladas no token.
     return this.jwt.signAsync({
       sub: user.idFuncionario,
       email: user.email,
@@ -127,6 +133,7 @@ export class AuthService {
   }
 
   async findUser(id: number): Promise<AuthenticatedUser> {
+    // Usado na restauração da sessão; funcionário inativo ou removido não mantém acesso.
     const [row] = await this.db.query<RowDataPacket & {
       idFuncionario: string;
       nome: string;
@@ -147,6 +154,7 @@ export class AuthService {
   }
 
   private toUser(employee: EmployeeRow): AuthenticatedUser {
+    // Converte a linha do MySQL em um objeto público sem incluir o hash da senha.
     return {
       idFuncionario: Number(employee.idFuncionario),
       nome: employee.nome,

@@ -16,6 +16,8 @@ export function useFinanceDomain(
     podeGerenciarDespesas: boolean,
     reportError: (message: string) => void
 ) {
+    // A coleção de despesas só carrega para quem tem permissão; notas são filtradas pela sessão,
+    // e seus endpoints continuam aplicando autorização no servidor.
     const despesas = useCollection<ApiDespesa, Despesa>(
         "/despesas",
         authenticated && podeGerenciarDespesas,
@@ -34,6 +36,7 @@ export function useFinanceDomain(
     const registrarDespesa = useCallback(
         async (descricao: string, valor: number, data: Date): Promise<string | null> => {
             try {
+                // A API persiste a despesa e a resposta revive o modelo para atualizar o estado local.
                 const row = await apiRequest<ApiDespesa>("/despesas", {
                     method: "POST",
                     body: apiBody({ descricao, valor, data: data.toISOString().slice(0, 10) })
@@ -50,6 +53,7 @@ export function useFinanceDomain(
     const pagarDespesa = useCallback(
         async (id: number): Promise<string | null> => {
             try {
+                // O backend executa o workflow de pagamento e devolve a linha já atualizada.
                 const row = await apiRequest<ApiDespesa>(`/despesas/${id}/pagamento`, {
                     method: "POST"
                 });
@@ -69,6 +73,7 @@ export function useFinanceDomain(
     const reenviarNota = useCallback(
         async (id: number): Promise<string | null> => {
             try {
+                // O backend só permite reenvio de nota com erro; após sucesso, espelha o status no frontend.
                 await apiRequest(`/notas-fiscais/${id}/reenvio`, { method: "POST" });
                 setNotasItems((items) =>
                     items.map((note) => {
