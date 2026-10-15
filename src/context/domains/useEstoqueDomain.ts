@@ -1,10 +1,13 @@
 //Ponto onde o template method é usado. Ele é chamado pelo hook de domínio (useEstoqueDomain) e recebe o tipo de movimentação vindo da tela. A fábrica devolve a classe que sabe executar aquele tipo de movimentação e o esqueleto do template method é rodado.
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { apiBody, apiErrorMessage, apiRequest } from "../../api/client";
 import { reviverInsumo, type ApiInsumo } from "../../api/modelsFromApi";
 import type { TipoMovimentacao } from "../AppContext";
 import type { Insumo } from "../../models/Insumo";
+
+//Singleton: espelho em memória do estoque, com um único ponto de acesso em toda a aplicação.
+import { Estoque } from "../../models/Estoque";
 
 //Factory do template method. Escolhe a classe de movimentação pelo tipo.
 import { obterMovimentacao } from "../../services/MovimentacaoEstoqueFactory";
@@ -16,7 +19,7 @@ export function useEstoqueDomain(
     reportError: (message: string) => void
 ) {
 
-    //Carrega a lista de insumos da API e quarda no estado.
+    //Carrega a lista de insumos da API e guarda no estado.
     const collection = useCollection<ApiInsumo, Insumo>(
         "/estoque",
         authenticated,
@@ -25,18 +28,15 @@ export function useEstoqueDomain(
     );
     const { items, setItems, refresh } = collection;
 
+    useEffect(() => {
+        Estoque.getInstancia().sincronizar(items); //Mantém o Singleton sempre igual à lista do estado. Roda depois de carregar, cadastrar, movimentar e também no logout (items vira []), então nunca sobra dado de outra sessão.
+    }, [items]);
+
     //Cadastra um novo insumo.
     const cadastrarInsumo = useCallback(
         async (insumo: Insumo): Promise<string | null> => {
 
-            //Evita duplicidade por número de SKU ou nome.
-            if (
-                items.some(
-                    (current) =>
-                        (insumo.sku && current.sku === insumo.sku) ||
-                        current.nome.trim().toLowerCase() === insumo.nome.trim().toLowerCase()
-                )
-            ) {
+            if (Estoque.getInstancia().jaCadastrado(insumo)) { //Evita duplicidade por número de SKU ou nome. A regra fica no Singleton, que tem a lista completa.
                 return "Esse insumo já está registrado.";
             }
             try {
@@ -62,7 +62,7 @@ export function useEstoqueDomain(
                 return apiErrorMessage(error);
             }
         },
-        [items, setItems]
+        [setItems]
     );
 
     //Registra movimentação em um insumo (seja entrada, saída ou ajuste). é tambpem onde o template method é usado.
@@ -73,7 +73,7 @@ export function useEstoqueDomain(
             quantidade: number,
             observacao: string
         ): Promise<string | null> => {
-            const current = items.find((item) => item.id === id);
+            const current = Estoque.getInstancia().buscarPorId(id); //Busca o insumo no Singleton (espelho do estoque) em vez de varrer o estado.
             if (!current) return "Insumo não encontrado.";
 
             //Escolhe a classe pelo tipo e roda o esqueleto do template method. Se houver algum erro de regra, a mensagem é devolvida e a API não é chamada.
@@ -99,7 +99,7 @@ export function useEstoqueDomain(
                 return apiErrorMessage(error);
             }
         },
-        [items, setItems]
+        [setItems]
     );
 
     return {
